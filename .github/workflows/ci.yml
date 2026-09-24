@@ -25,6 +25,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # src/config/env.ts holds real secrets and is gitignored — it doesn't exist in a
+      # fresh checkout. The placeholder template satisfies the module's types for
+      # typecheck/lint/test, none of which actually connect to Supabase/Google.
+      - name: Seed env.ts from the placeholder template
+        run: cp src/config/env.example.ts src/config/env.ts
+
       - name: Typecheck
         run: npm run typecheck
 
