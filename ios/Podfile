@@ -5,8 +5,14 @@ require Pod::Executable.execute_command('node', ['-p',
     {paths: [process.argv[1]]},
   )', __dir__]).strip
 
-platform :ios, min_ios_version_supported
+min_ios_version = Gem::Version.new(min_ios_version_supported) > Gem::Version.new('15.5') ? min_ios_version_supported : '15.5'
+platform :ios, min_ios_version
 prepare_react_native_project!
+
+# Google Sign-In pulls in Swift pods (AppCheckCore -> GoogleUtilities/RecaptchaInterop) that
+# don't define Clang modules; without this, static-library linking (the RN default) fails
+# with "cannot yet be integrated as static libraries" during pod install.
+use_modular_headers!
 
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil

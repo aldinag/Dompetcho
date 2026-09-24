@@ -1,97 +1,214 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Dompetcho
 
-# Getting Started
+MVP1: share a Livin' by Mandiri transfer receipt screenshot and get a logged expense with
+near-zero typing. On-device OCR (ML Kit), Google Sign-In via Supabase, manual quick-add
+fallback, home list, and a monthly summary chart.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+Bare React Native CLI (no Expo). **Tested against a physical Android device** — the share
+sheet and Google Sign-In can't be verified reliably on an emulator/simulator, see below.
 
-## Step 1: Start Metro
+## What's implemented
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+- `src/screens/LoginScreen.tsx` — Google Sign-In
+- `src/screens/ExpenseFormScreen.tsx` — shared manual quick-add + receipt review/confirm screen
+- `src/screens/HomeScreen.tsx`, `src/screens/SummaryScreen.tsx`
+- `src/parsers/mandiriReceiptParser.ts` — the pluggable OCR text parser (see the big warning
+  in that file — it needs tuning against real receipts, not just this reconstruction)
+- `src/hooks/useShareIntent.ts` — Android share-sheet handler
+- `supabase/schema.sql` — full schema, RLS policies, and the auth trigger that provisions a
+  `users` row + default categories on first Google sign-in
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+## 1. Install JS dependencies
 
-```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+```bash
+npm install
 ```
 
-## Step 2: Build and run your app
+## 2. Configure environment variables
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```bash
+cp src/config/env.example.ts src/config/env.ts
 ```
 
-### iOS
+Edit `src/config/env.ts` with three values — where to get each is covered in the sections
+below:
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+| Variable | Where it comes from |
+|---|---|
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Supabase dashboard > Project Settings > API |
+| `GOOGLE_WEB_CLIENT_ID` | Google Cloud Console, the **Web application** OAuth client (step 4) |
+| `GOOGLE_IOS_CLIENT_ID` | Google Cloud Console, the **iOS** OAuth client (step 4) — iOS build only, unused on Android |
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+`src/config/env.ts` is gitignored — never commit real keys.
 
-```sh
-bundle install
+## 3. Set up the Supabase project
+
+1. Create a project at [supabase.com](https://supabase.com) (or use an existing one).
+2. Open **SQL Editor > New query**, paste the entire contents of
+   [`supabase/schema.sql`](supabase/schema.sql), and run it. This creates `users`,
+   `categories`, `expenses`, `receipt_scans`, RLS policies, and the trigger that
+   auto-creates a user profile + seeds the 8 default categories the first time someone
+   signs in.
+3. Copy the Project URL and `anon` public key into `src/config/env.ts`.
+
+### Email/password login (skips Google Sign-In entirely)
+
+Google Sign-In needs real OAuth clients + native config (next section) before it works at
+all, which is a blocker if you just want to poke at Home/Add/Summary right now — and it
+doesn't work at all on devices without Google Play Services (e.g. Huawei phones), since it
+depends on the native Google Sign-In SDK. The Login screen has an **email/password
+fallback** shown on every build, including release, for exactly this case.
+
+There's no self-serve sign-up — each person who needs this needs a Supabase user created
+for them first:
+
+1. Supabase dashboard > **Authentication > Providers** — confirm **Email** is enabled (on
+   by default).
+2. **Authentication > Users > Add user** — create one with any email/password, e.g.
+   `dev@example.com` / a password of your choice. Leave "Auto Confirm User" checked so it
+   doesn't need email verification.
+3. In the app's Login screen, below the Google button, enter that same email/password and
+   tap **Masuk**.
+
+This goes through the same `handle_new_auth_user` trigger as Google sign-in, so your dev
+user gets a real `users` row and the 8 default categories seeded automatically — Home, Add,
+and Summary all work normally against it.
+
+## 4. Google Sign-In: SHA-1 fingerprint + OAuth clients
+
+Google Sign-In on Android is validated against your app's SHA-1 certificate fingerprint, so
+you need that before creating the OAuth client.
+
+### Get the debug SHA-1
+
+```bash
+cd android
+./gradlew signingReport
 ```
 
-Then, and every time you update your native dependencies, run:
+Look for the `SHA1` line under the `debug` variant (you'll need a separate one for your
+release keystore later, when you actually ship).
 
-```sh
-bundle exec pod install
+### Create the Google Cloud OAuth clients
+
+In [Google Cloud Console](https://console.cloud.google.com) > **APIs & Services >
+Credentials** (create a project first if you don't have one):
+
+1. **Configure the OAuth consent screen** if you haven't already (External, add your own
+   Google account as a test user while unpublished).
+2. **Create Credentials > OAuth client ID > Android**
+   - Package name: `com.dompetcho`
+   - SHA-1: the debug fingerprint from above
+3. **Create Credentials > OAuth client ID > Web application**
+   - No redirect URIs needed for this flow
+   - Copy this client's **Client ID** — this is your `GOOGLE_WEB_CLIENT_ID`. (Yes, the *Web*
+     client ID is what `@react-native-google-signin/google-signin` wants as `webClientId`
+     on Android — this is expected, not a typo.)
+4. **Create Credentials > OAuth client ID > iOS** (iOS build only — skip if you're only
+   testing Android)
+   - Bundle ID: `com.dompetcho`
+   - No SHA-1 needed for iOS
+   - Copy this client's **Client ID** — this is your `GOOGLE_IOS_CLIENT_ID`. Without it (or a
+     Firebase `GoogleService-Info.plist`), `GoogleSignin.configure()` throws "failed to
+     determine clientID" at runtime on iOS.
+   - Then open `ios/Dompetcho/Info.plist` and replace the placeholder URL scheme with your
+     iOS client ID **reversed** — e.g. client ID `1234-abcd.apps.googleusercontent.com`
+     becomes `com.googleusercontent.apps.1234-abcd` in the `CFBundleURLTypes` entry already
+     there. Without this, Safari can't hand control back to the app after the Google
+     sign-in page and the flow just hangs.
+
+### Enable Google auth in Supabase
+
+Supabase dashboard > **Authentication > Providers > Google**:
+- Enable it
+- Under "Authorized Client IDs", add the **Web application** client ID from above (this is
+  what lets `supabase.auth.signInWithIdToken()` accept the token)
+
+No native Android manifest changes are needed for Google Sign-In itself — this library uses
+the legacy Google Sign-In SDK directly, not `google-services.json`/Firebase. On iOS, the one
+required native edit is the URL scheme in `Info.plist` covered in step 4 above.
+
+## 5. Native module linking
+
+Everything here autolinks via React Native's CLI — no manual `MainApplication` package
+registration needed. Two Android files were already hand-edited for the parts autolinking
+can't do:
+
+- `android/app/src/main/AndroidManifest.xml` — a `SEND` intent-filter for `image/*` so
+  Dompetcho appears in the Android share sheet, plus camera/media-read permissions
+- `android/app/src/main/java/com/dompetcho/MainActivity.kt` — an `onNewIntent` override so a
+  share arriving while the app is already running is actually picked up (the app's
+  `singleTask` launch mode means Android reuses the existing activity and calls
+  `onNewIntent` instead of restarting it)
+
+Just do a clean native build after `npm install` so Gradle picks up all the new
+dependencies:
+
+```bash
+cd android && ./gradlew clean && cd ..
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+## 6. Run on a physical Android device
 
-```sh
-# Using npm
-npm run ios
+An emulator can't be used to properly test this app — the Android share sheet needs another
+real app (Gallery, WhatsApp) to share *from*, and Google Sign-In needs Play Services signed
+in with a real Google account. Use a physical device:
 
-# OR using Yarn
-yarn ios
+1. Enable Developer Options + USB debugging on the device, connect via USB, accept the
+   debugging prompt.
+2. Confirm it's visible: `adb devices`
+3. Run:
+   ```bash
+   npm run android
+   ```
+   This builds the debug APK, installs it, and starts Metro.
+
+### Testing the share flow
+Share any Mandiri Livin' transfer receipt screenshot from Gallery (or forward one to
+yourself in WhatsApp and share it from there) → choose **Dompetcho** in the share sheet →
+the app opens on the review screen with fields pre-filled.
+
+### Testing Google Sign-In
+Tap "Sign in with Google" on first launch → pick the Google account you added as a test user
+on the OAuth consent screen (or any account, once the app/consent screen is published).
+
+## 7. Tuning the Mandiri parser against real receipts
+
+`src/parsers/mandiriReceiptParser.ts` was written against the known shape of a Livin' by
+Mandiri transfer confirmation screen, but **has not been validated against real ML Kit OCR
+output** — that requires an actual device and actual receipt screenshots, neither of which
+were available while building this. Before relying on it:
+
+1. Share/upload a real receipt in the running app.
+2. Grab the `raw_ocr_text` that got stored on the corresponding `receipt_scans` row (easiest
+   via the Supabase Table Editor, or a temporary `console.log` in
+   `src/services/receiptImportService.ts`).
+3. Paste it into the fixture at the top of
+   `src/parsers/__tests__/mandiriReceiptParser.test.ts`, replacing the placeholder text.
+4. Run `npm test` and adjust the label regexes in `mandiriReceiptParser.ts` until it passes
+   against your real sample. Try a couple of different receipts (different recipient banks,
+   with/without a note) since label wording can vary slightly.
+
+## Project structure
+
+```
+src/
+  config/        env.ts (gitignored) — Supabase + Google client config
+  lib/           supabase.ts client
+  types/         shared TS types matching the DB schema
+  parsers/       pluggable receipt parsers (mandiriReceiptParser + shared interface)
+  services/      OCR, receipt import orchestration, expenses, categories, Google auth
+  store/         Zustand stores (auth, expenses, import-in-progress overlay)
+  hooks/         useShareIntent, useReceiptProcessor, useTheme
+  navigation/    root stack (Login/Main/ExpenseForm) + bottom tabs (Home/Add/Summary)
+  screens/       LoginScreen, HomeScreen, SummaryScreen, ExpenseFormScreen
+  components/    AmountInput, CategoryPicker, ExpenseListItem, ProfileHeader, ...
+supabase/schema.sql
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Non-goals for MVP1 (by design)
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+Other banks/e-wallets, cloud OCR, multiple accounts, budgets, subscriptions, push
+notifications, recurring-transaction detection. The parser is structured so a bank/e-wallet
+or a cloud LLM+OCR path can be added in `src/parsers/` later without touching the OCR
+pipeline or the review/confirm screen — see `src/parsers/index.ts`.
