@@ -1,5 +1,7 @@
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Icon } from './Icon';
 import { categoryLabel } from '../constants/categoryLabels';
 import { categoryColor, categoryTint } from '../constants/categoryColors';
@@ -7,18 +9,27 @@ import { categoryIcon } from '../constants/categoryIcons';
 import { spacing } from '../constants/spacing';
 import { typography, tabularNums } from '../constants/typography';
 import { useTheme } from '../hooks/useTheme';
+import { RootStackParamList } from '../navigation/types';
 import { Expense } from '../types';
 import { formatRupiah } from '../utils/format';
 
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
 export function ExpenseListItem({ expense }: { expense: Expense }) {
   const theme = useTheme();
+  const navigation = useNavigation<Nav>();
   const isReceipt = expense.source === 'receipt_ocr';
   const isIncome = expense.type === 'income';
   const categoryName = expense.category?.name;
   const amountColor = isIncome ? theme.success : theme.danger;
 
   return (
-    <View style={[styles.row, { borderBottomColor: theme.border }]}>
+    <TouchableOpacity
+      style={[styles.row, { borderBottomColor: theme.border }]}
+      onPress={() => navigation.navigate('ExpenseForm', { expenseId: expense.id })}
+      accessibilityRole="button"
+      accessibilityLabel={`Edit ${categoryLabel(categoryName)}, ${formatRupiah(expense.amount)}`}
+    >
       <View style={[styles.iconBadge, { backgroundColor: categoryTint(categoryName) }]}>
         <Icon name={categoryIcon(categoryName)} size={20} color={categoryColor(categoryName)} />
       </View>
@@ -41,7 +52,7 @@ export function ExpenseListItem({ expense }: { expense: Expense }) {
           <Text style={[styles.badgeText, { color: theme.textMuted }]}>{isReceipt ? 'Struk' : 'Manual'}</Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 

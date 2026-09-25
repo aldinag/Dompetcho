@@ -61,7 +61,11 @@ export function RootNavigator() {
               options={({ route }) => ({
                 headerShown: true,
                 presentation: 'modal',
-                title: route.params?.receiptScanId ? 'Tinjau Struk' : 'Tambah Pengeluaran',
+                title: route.params?.receiptScanId
+                  ? 'Tinjau Struk'
+                  : route.params?.expenseId
+                  ? 'Edit Pengeluaran'
+                  : 'Tambah Pengeluaran',
               })}
             />
             <Stack.Screen name="Profile" component={ProfileScreen} />
