@@ -11,10 +11,16 @@ interface AuthState {
   signInWithGoogle: () => Promise<void>;
   /**
    * Email/password sign-in — shown on LoginScreen alongside Google Sign-In, mainly as a
-   * fallback for devices without Google Play Services. Requires a user already created in
-   * the Supabase dashboard; there's no self-serve sign-up yet.
+   * fallback for devices without Google Play Services.
    */
   signInWithPassword: (email: string, password: string) => Promise<void>;
+  /**
+   * Self-serve email/password sign-up. Returns true if the account is signed in
+   * immediately (email confirmation disabled project-wide), false if Supabase sent a
+   * confirmation email instead (its default) — the caller should tell the user to check
+   * their inbox in that case.
+   */
+  signUpWithPassword: (email: string, password: string) => Promise<boolean>;
   signOut: () => Promise<void>;
 }
 
@@ -67,6 +73,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+    } finally {
+      set({ signingIn: false });
+    }
+  },
+
+  signUpWithPassword: async (email: string, password: string) => {
+    if (get().signingIn) return false;
+    set({ signingIn: true });
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      return data.session != null;
     } finally {
       set({ signingIn: false });
     }

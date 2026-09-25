@@ -59,8 +59,15 @@ doesn't work at all on devices without Google Play Services (e.g. Huawei phones)
 depends on the native Google Sign-In SDK. The Login screen has an **email/password
 fallback** shown on every build, including release, for exactly this case.
 
-There's no self-serve sign-up — each person who needs this needs a Supabase user created
-for them first:
+The Login screen's email/password block is self-serve — tap **Belum punya akun? Daftar** to
+switch it into sign-up mode, enter an email/password, and tap **Daftar**. This calls
+`supabase.auth.signUp`, which by default requires confirming the address by email before the
+account can sign in; the app tells the user to check their inbox in that case and switches
+back to sign-in mode. To skip that (e.g. for local dev), Supabase dashboard >
+**Authentication > Providers > Email > Confirm email** can be turned off project-wide, in
+which case sign-up returns a session immediately and signs the user straight in.
+
+You can still create a user by hand instead, if you'd rather not go through the app:
 
 1. Supabase dashboard > **Authentication > Providers** — confirm **Email** is enabled (on
    by default).

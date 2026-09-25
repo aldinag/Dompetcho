@@ -34,7 +34,7 @@ being added to this file by a human:
 
 ## Next MVP
 
-- [ ] **Self-serve sign-up for email/password login.** Right now every email/password user
+- [x] **Self-serve sign-up for email/password login.** Right now every email/password user
       has to be created by hand in the Supabase dashboard (see README). Add a sign-up mode
       to `LoginScreen`'s email/password block (toggle between "Masuk" and "Daftar", call
       `supabase.auth.signUp`), so anyone can create their own account without asking the
