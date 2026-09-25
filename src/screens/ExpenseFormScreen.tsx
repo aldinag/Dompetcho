@@ -31,7 +31,7 @@ import { useStatusBarStyle } from '../hooks/useStatusBarStyle';
 import { useTheme } from '../hooks/useTheme';
 import { RootStackParamList } from '../navigation/types';
 import { confirmReceiptScan, discardReceiptScan } from '../services/receiptImportService';
-import { createExpense } from '../services/expenseService';
+import { createExpense, updateExpense } from '../services/expenseService';
 import { useAuthStore } from '../store/useAuthStore';
 import { useExpenseStore } from '../store/useExpenseStore';
 import { Expense, ExpenseSource, TransactionType } from '../types';
@@ -50,20 +50,30 @@ export function ExpenseFormScreen() {
 
   const user = useAuthStore(state => state.user);
   const categories = useExpenseStore(state => state.categories);
+  const expenses = useExpenseStore(state => state.expenses);
   const addExpenseOptimistic = useExpenseStore(state => state.addExpenseOptimistic);
   const replaceExpense = useExpenseStore(state => state.replaceExpense);
   const removeExpense = useExpenseStore(state => state.removeExpense);
 
   const isReceiptFlow = !!params?.receiptScanId;
+  const isEditFlow = !!params?.expenseId;
+  // The row being edited, read from the store by id — not passed as a param, so it always
+  // reflects whatever's currently in the list (e.g. after a pull-to-refresh).
+  const editingExpense = isEditFlow ? expenses.find(e => e.id === params!.expenseId) : undefined;
   const defaultCategoryId =
     categories.find(c => c.name === DEFAULT_RECEIPT_CATEGORY_NAME)?.id ?? null;
 
-  const [amount, setAmount] = useState<number | null>(params?.prefill?.amount ?? null);
-  const [date, setDate] = useState<string>(params?.prefill?.date ?? nowTimestamp());
-  const [categoryId, setCategoryId] = useState<string | null>(isReceiptFlow ? defaultCategoryId : null);
-  const [note, setNote] = useState<string>(params?.prefill?.recipientName ?? '');
-  // Receipts are always an outgoing transfer — the toggle only makes sense for manual entry.
-  const [type, setType] = useState<TransactionType>('expense');
+  const [amount, setAmount] = useState<number | null>(
+    editingExpense ? Number(editingExpense.amount) : params?.prefill?.amount ?? null,
+  );
+  const [date, setDate] = useState<string>(editingExpense?.date ?? params?.prefill?.date ?? nowTimestamp());
+  const [categoryId, setCategoryId] = useState<string | null>(
+    editingExpense ? editingExpense.category_id : isReceiptFlow ? defaultCategoryId : null,
+  );
+  const [note, setNote] = useState<string>(editingExpense?.note ?? params?.prefill?.recipientName ?? '');
+  // Receipts are always an outgoing transfer — the toggle only makes sense for manual entry
+  // and editing.
+  const [type, setType] = useState<TransactionType>(editingExpense?.type ?? 'expense');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [saving, setSaving] = useState(false);
   const processReceiptImage = useReceiptProcessor();
@@ -77,17 +87,59 @@ export function ExpenseFormScreen() {
   }
 
   // The "Add" tab reuses this same screen with no params — clear any leftover state
-  // from a previous manual entry each time the tab regains focus.
+  // from a previous manual entry each time the tab regains focus. Skipped for edit (its
+  // initial state above already reflects the row being edited, and this would wipe it).
   useFocusEffect(
     useCallback(() => {
-      if (!isReceiptFlow) resetForm();
-    }, [isReceiptFlow]),
+      if (!isReceiptFlow && !isEditFlow) resetForm();
+    }, [isReceiptFlow, isEditFlow]),
+  );
+
+  // Defends against a stale/bad expenseId (e.g. the row was removed elsewhere between
+  // tapping it and this screen mounting) — bail out instead of showing a broken blank form.
+  useFocusEffect(
+    useCallback(() => {
+      if (isEditFlow && !editingExpense) {
+        Alert.alert('Pengeluaran tidak ditemukan', 'Data ini mungkin sudah dihapus.');
+        navigation.goBack();
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isEditFlow, !!editingExpense]),
   );
 
   async function handleSave() {
     if (!user) return;
     if (amount === null || amount <= 0) {
       Alert.alert('Nominal wajib diisi', 'Masukkan nominal sebelum menyimpan.');
+      return;
+    }
+
+    if (isEditFlow) {
+      if (!editingExpense) return; // guarded by the mount-time check above
+      setSaving(true);
+      const expenseId = editingExpense.id;
+      const optimisticExpense: Expense = {
+        ...editingExpense,
+        amount,
+        category_id: categoryId,
+        note: note || null,
+        date,
+        type,
+        category: categories.find(c => c.id === categoryId) ?? null,
+      };
+      replaceExpense(expenseId, optimisticExpense);
+      ReactNativeHapticFeedback.trigger('notificationSuccess');
+      navigation.goBack();
+
+      try {
+        const real = await updateExpense(expenseId, { amount, categoryId, note: note || null, date, type });
+        replaceExpense(expenseId, real);
+      } catch (error: any) {
+        replaceExpense(expenseId, editingExpense);
+        Alert.alert('Gagal menyimpan perubahan', error?.message ?? 'Silakan coba lagi.');
+      } finally {
+        setSaving(false);
+      }
       return;
     }
 
@@ -183,8 +235,9 @@ export function ExpenseFormScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
       // As a tab (no header) this needs the top inset itself; when pushed with a header
-      // (the receipt-review modal) the header already accounts for it, so this is a no-op there.
-      edges={isReceiptFlow ? ['bottom'] : ['top', 'bottom']}
+      // (the receipt-review or edit modal) the header already accounts for it, so this is
+      // a no-op there.
+      edges={isReceiptFlow || isEditFlow ? ['bottom'] : ['top', 'bottom']}
     >
       <KeyboardAvoidingView
         style={styles.flex}
@@ -202,7 +255,7 @@ export function ExpenseFormScreen() {
             </View>
           )}
 
-          <AmountInput value={amount} onChangeValue={setAmount} autoFocus={!isReceiptFlow} />
+          <AmountInput value={amount} onChangeValue={setAmount} autoFocus={!isReceiptFlow && !isEditFlow} />
 
           {!isReceiptFlow && (
             <View style={[styles.typeToggle, { borderColor: theme.border }]}>
@@ -229,7 +282,7 @@ export function ExpenseFormScreen() {
             </View>
           )}
 
-          {!isReceiptFlow && (
+          {!isReceiptFlow && !isEditFlow && (
             <TouchableOpacity
               style={[styles.uploadButton, { borderColor: theme.border }]}
               onPress={handleUploadReceipt}
@@ -302,7 +355,7 @@ export function ExpenseFormScreen() {
               <ActivityIndicator color={theme.primaryText} />
             ) : (
               <Text style={{ color: theme.primaryText, fontWeight: '700', fontSize: 16 }}>
-                {isReceiptFlow ? 'Konfirmasi' : 'Simpan'}
+                {isReceiptFlow ? 'Konfirmasi' : isEditFlow ? 'Simpan Perubahan' : 'Simpan'}
               </Text>
             )}
           </TouchableOpacity>
