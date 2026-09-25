@@ -189,6 +189,50 @@ were available while building this. Before relying on it:
    against your real sample. Try a couple of different receipts (different recipient banks,
    with/without a note) since label wording can vary slightly.
 
+## 8. Branching, CI, and Firebase App Distribution
+
+Two long-lived branches: `dev` (default branch — PRs land here, every merge auto-ships to
+testers) and `main` (production — a PR from `dev` into `main` is the release act). Both are
+branch-protected (CI must pass, no force-push, no deletion). Full detail in ROADMAP.md's
+"Branching & release flow" section.
+
+`.github/workflows/ci.yml` runs typecheck/lint/test on every push and PR to either branch —
+nothing to set up, it just works.
+
+`.github/workflows/distribute.yml` builds a release APK and uploads it to Firebase App
+Distribution on every merge to `dev` (→ `dev-testers` group) or `main` (→ `prod-testers`
+group). This one needs three repo secrets (**Settings > Secrets and variables > Actions**)
+before it'll run successfully:
+
+| Secret | What it is |
+| --- | --- |
+| `DOMPETCHO_ENV_TS` | The full contents of your local `src/config/env.ts`, pasted as-is. Unlike CI's typecheck-only placeholder, a build real testers install needs real Supabase/Google config to actually work. |
+| `FIREBASE_ANDROID_APP_ID` | From the Firebase console: add an Android app (package `com.dompetcho`) to a Firebase project, then copy its App ID (looks like `1:1234567890:android:abcdef`). |
+| `FIREBASE_SERVICE_ACCOUNT` | A service account JSON key with the "Firebase App Distribution Admin" role. Google Cloud Console > IAM > Service Accounts (on the same project as your Firebase project) > create one > grant that role > Keys > Add key > JSON. Paste the whole file content. |
+
+You'll also need to create two **Tester Groups** named `dev-testers` and `prod-testers` in
+the Firebase console (App Distribution > Testers & Groups) — add yourself (and anyone else)
+to whichever group(s) you want builds to reach. Rename the groups in `distribute.yml` if you
+call them something else.
+
+**Deliberate MVP-stage simplifications** — none of these are required to get this working,
+but worth knowing about:
+
+- **Same signing key for dev and prod.** Both are signed with the checked-in debug keystore
+  (see `android/app/build.gradle`) — the same one already used for local development and
+  Google Sign-In. Before ever submitting to the Play Store (a very different distribution
+  channel from Firebase App Distribution's internal testing), you'd need a real release
+  keystore, kept out of git, with its own SHA-1 registered for Google Sign-In.
+- **Same `applicationId` for dev and prod** (`com.dompetcho`). A dev build installs *over*
+  a prod build on the same device rather than living alongside it. Giving dev builds a
+  separate id (e.g. via an `applicationIdSuffix` in a Gradle product flavor) would let
+  testers keep both installed side by side, at the cost of needing a second Google Sign-In
+  Android client registration for that new package name.
+- **Same Supabase backend for dev and prod** — one project, one database, for both. A
+  cleaner setup for a real team is a second Supabase project for dev/staging (its own
+  `supabase/schema.sql` run, its own anon key in a `dev` variant of `DOMPETCHO_ENV_TS`), so
+  testing never touches production data.
+
 ## Project structure
 
 ```
