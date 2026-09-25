@@ -53,22 +53,38 @@ export function LoginScreen() {
 /**
  * Email/password sign-in — a fallback for devices without Google Play Services (e.g.
  * Huawei phones), where the native Google Sign-In SDK can't work at all. Shown on every
- * build, not just dev. Requires a user created in the Supabase dashboard (Authentication >
- * Users > Add user) with the email provider enabled — there's no self-serve sign-up yet,
- * so each person who needs this needs an account created for them first.
+ * build, not just dev. Toggles between signing in to an existing account ("Masuk") and
+ * self-serve sign-up ("Daftar") via `supabase.auth.signUp`.
  */
 function EmailPasswordLogin() {
   const theme = useTheme();
   const signingIn = useAuthStore(state => state.signingIn);
   const signInWithPassword = useAuthStore(state => state.signInWithPassword);
+  const signUpWithPassword = useAuthStore(state => state.signUpWithPassword);
+  const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   async function handlePress() {
     try {
-      await signInWithPassword(email.trim(), password);
+      if (mode === 'signIn') {
+        await signInWithPassword(email.trim(), password);
+      } else {
+        const signedInImmediately = await signUpWithPassword(email.trim(), password);
+        if (!signedInImmediately) {
+          Alert.alert(
+            'Cek email Anda',
+            'Tautan konfirmasi telah dikirim ke email Anda. Buka tautan itu, lalu masuk di sini.',
+          );
+          setMode('signIn');
+          setPassword('');
+        }
+      }
     } catch (error: any) {
-      Alert.alert('Gagal masuk', error?.message ?? 'Periksa email/password dan coba lagi.');
+      Alert.alert(
+        mode === 'signIn' ? 'Gagal masuk' : 'Gagal daftar',
+        error?.message ?? 'Periksa email/password dan coba lagi.',
+      );
     }
   }
 
@@ -76,7 +92,9 @@ function EmailPasswordLogin() {
     <View style={styles.emailBlock}>
       <View style={styles.dividerRow}>
         <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-        <Text style={[styles.dividerText, { color: theme.textMuted }]}>atau masuk dengan email</Text>
+        <Text style={[styles.dividerText, { color: theme.textMuted }]}>
+          {mode === 'signIn' ? 'atau masuk dengan email' : 'atau daftar dengan email'}
+        </Text>
         <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
       </View>
       <TextInput
@@ -104,9 +122,19 @@ function EmailPasswordLogin() {
         onPress={handlePress}
         disabled={signingIn || !email || !password}
         accessibilityRole="button"
-        accessibilityLabel="Masuk dengan email"
+        accessibilityLabel={mode === 'signIn' ? 'Masuk dengan email' : 'Daftar dengan email'}
       >
-        <Text style={{ color: theme.primary, fontWeight: '700' }}>Masuk</Text>
+        <Text style={{ color: theme.primary, fontWeight: '700' }}>{mode === 'signIn' ? 'Masuk' : 'Daftar'}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => setMode(mode === 'signIn' ? 'signUp' : 'signIn')}
+        disabled={signingIn}
+        accessibilityRole="button"
+        accessibilityLabel={mode === 'signIn' ? 'Beralih ke daftar akun baru' : 'Beralih ke masuk'}
+      >
+        <Text style={[styles.switchModeText, { color: theme.textMuted }]}>
+          {mode === 'signIn' ? 'Belum punya akun? Daftar' : 'Sudah punya akun? Masuk'}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -184,5 +212,10 @@ const styles = StyleSheet.create({
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  switchModeText: {
+    ...typography.caption,
+    textAlign: 'center',
+    marginTop: spacing['2xs'],
   },
 });
