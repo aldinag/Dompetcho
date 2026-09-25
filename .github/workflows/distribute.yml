@@ -41,21 +41,44 @@ jobs:
       # real network calls), a build that real testers install needs to actually be able to
       # sign in and load data — so this seeds the real config from a secret instead. Set the
       # DOMPETCHO_ENV_TS secret to the full contents of your local src/config/env.ts.
+      #
+      # Fails loudly if the secret is missing rather than silently writing an empty file —
+      # `./gradlew assembleRelease` doesn't typecheck the JS bundle, so an empty env.ts would
+      # otherwise "succeed" and produce an APK that looks fine but can't reach Supabase or
+      # Google at runtime.
       - name: Write real env.ts from secret
-        run: echo "${{ secrets.DOMPETCHO_ENV_TS }}" > src/config/env.ts
+        run: |
+          if [ -z "${{ secrets.DOMPETCHO_ENV_TS }}" ]; then
+            echo "::error::DOMPETCHO_ENV_TS secret is not set — see README's 'Branching, CI, and Firebase App Distribution' section."
+            exit 1
+          fi
+          echo "${{ secrets.DOMPETCHO_ENV_TS }}" > src/config/env.ts
 
       - name: Build release APK
         run: cd android && ./gradlew assembleRelease
 
+      # A merge commit's message is multi-line ("Merge pull request #N from ...\n\n<PR
+      # title>"), which breaks a plain `echo "key=value" >> $GITHUB_OUTPUT` (its format is
+      # line-based, one key=value per line). Uses the heredoc-style multi-line syntax
+      # instead, and passes the message through `env:` rather than interpolating it directly
+      # into the script, since directly interpolating untrusted content like a commit
+      # message into a `run:` block is a known injection risk.
       - name: Pick distribution group + release notes for this branch
         id: target
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           if [ "${{ github.ref_name }}" = "main" ]; then
             echo "group=prod-testers" >> "$GITHUB_OUTPUT"
           else
             echo "group=dev-testers" >> "$GITHUB_OUTPUT"
           fi
-          echo "notes=${{ github.ref_name }} @ ${{ github.sha }} — ${{ github.event.head_commit.message }}" >> "$GITHUB_OUTPUT"
+          {
+            echo "notes<<DISTRIBUTE_NOTES_EOF"
+            echo "${{ github.ref_name }} @ ${{ github.sha }}"
+            echo "$COMMIT_MESSAGE"
+            echo "DISTRIBUTE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Upload to Firebase App Distribution
         uses: wzieba/Firebase-Distribution-Github-Action@v1
