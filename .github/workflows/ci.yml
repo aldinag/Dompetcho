@@ -6,9 +6,9 @@ name: CI
 # if real-device build breakage becomes a recurring problem.
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   verify:

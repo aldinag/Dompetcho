@@ -1,0 +1,67 @@
+name: Distribute
+
+# Builds a release APK and pushes it to Firebase App Distribution whenever a PR lands on
+# `dev` or `main`. By the time a commit reaches either branch it has already passed CI
+# (branch protection requires the "Typecheck, lint, test" check before merge), so this
+# workflow doesn't re-run those checks — it only builds and ships.
+#
+# `dev` → the `dev-testers` group (internal/QA builds, one per merge)
+# `main` → the `prod-testers` group (release builds — merging dev into main is the actual
+#   release act; see ROADMAP.md's "Branching & release flow" section)
+#
+# Both currently share the same signing key (the checked-in debug keystore — see
+# android/app/build.gradle), the same applicationId, and the same Supabase backend. That's
+# a deliberate MVP-stage simplification, not an oversight — see README.md's "CI/CD:
+# Firebase App Distribution" section for the tradeoff and how to change it later.
+on:
+  push:
+    branches: [dev, main]
+
+jobs:
+  distribute:
+    name: Build and distribute Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Unlike ci.yml's placeholder env.ts (fine for typecheck/lint/test, which never make
+      # real network calls), a build that real testers install needs to actually be able to
+      # sign in and load data — so this seeds the real config from a secret instead. Set the
+      # DOMPETCHO_ENV_TS secret to the full contents of your local src/config/env.ts.
+      - name: Write real env.ts from secret
+        run: echo "${{ secrets.DOMPETCHO_ENV_TS }}" > src/config/env.ts
+
+      - name: Build release APK
+        run: cd android && ./gradlew assembleRelease
+
+      - name: Pick distribution group + release notes for this branch
+        id: target
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "group=prod-testers" >> "$GITHUB_OUTPUT"
+          else
+            echo "group=dev-testers" >> "$GITHUB_OUTPUT"
+          fi
+          echo "notes=${{ github.ref_name }} @ ${{ github.sha }} — ${{ github.event.head_commit.message }}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to Firebase App Distribution
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          groups: ${{ steps.target.outputs.group }}
+          file: android/app/build/outputs/apk/release/app-release.apk
+          releaseNotes: ${{ steps.target.outputs.notes }}
