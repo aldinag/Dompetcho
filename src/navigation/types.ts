@@ -17,6 +17,8 @@ export type RootStackParamList = {
     imageUri?: string;
     bankDetected?: BankDetected;
     prefill?: ExpenseFormPrefill;
+    /** Editing an existing expense — its current values are read from the store by id. */
+    expenseId?: string;
   } | undefined;
 };
 
