@@ -14,9 +14,23 @@ being added to this file by a human:
 - No subscriptions/recurring-expense tracking
 - No push notifications
 
+## Branching & release flow
+
+- `main` is production. It's what `distribute.yml` ships to Firebase App Distribution's
+  `prod-testers` group on every merge.
+- `dev` is the integration branch and GitHub's default branch — this is where PRs land,
+  including every roadmap item and bug fix. Every merge here also auto-ships to
+  `dev-testers` via the same workflow, so `dev` is always installable, not just compilable.
+- Promoting `dev` to production is a deliberate, separate act: open a PR from `dev` into
+  `main` and merge it. That PR is the release — a human reviews and merges it, same as any
+  other PR. Nothing here automates that step, on purpose.
+- Both branches are protected: the CI status check must pass before merging, no
+  force-pushes, no deletions.
+
 ## Ground rules for automated work
 
-- **Never push to `main` directly.** Work on a branch, open a PR, let CI run.
+- **Never push to `main` or `dev` directly.** Work on a branch off `dev`, open a PR against
+  `dev`, let CI run.
 - **Run `npm run typecheck`, `npm run lint`, and `npm test` before opening the PR.** All
   three must pass clean (lint may have pre-existing warnings — don't add new ones).
 - **A DB schema change is a PR, not a migration run.** If an item needs a new/changed
@@ -79,10 +93,7 @@ being added to this file by a human:
       own unpaginated query, or a "load earlier months" affordance — use your judgment and
       explain the choice in the PR).
 
-- [ ] **Add an Android release-build CI job.** The current `ci.yml` only runs
-      typecheck/lint/jest — it doesn't catch native build breakage (the kind of thing that
-      took real back-and-forth to fix earlier: Gradle/jcenter issues, patch-package). Add a
-      separate workflow (or job) that runs `cd android && ./gradlew assembleRelease` on
-      Ubuntu with the Android SDK set up, using the placeholder `env.example.ts` the same
-      way `ci.yml` does. This does not replace testing on a real device — that still needs a
-      human with a phone.
+- [x] ~~Add an Android release-build CI job.~~ Superseded by `distribute.yml`, which builds
+      `assembleRelease` on every merge to `dev`/`main` (and ships it to Firebase App
+      Distribution) — so native build breakage now surfaces immediately rather than needing
+      a separate job. This still doesn't replace testing on a real device.
