@@ -21,6 +21,7 @@ export async function importReceiptImage(userId: string, imageUri: string): Prom
       parsed_date: parsed?.date ? timestampFromLocal(parsed.date, parsed.time) : null,
       parsed_recipient: parsed?.recipientName ?? null,
       parsed_reference_no: parsed?.referenceNo ?? null,
+      parsed_note: parsed?.parsedNote ?? null,
       status: 'pending_review',
     })
     .select('*')

@@ -47,6 +47,7 @@ export interface ReceiptScan {
   parsed_date: string | null;
   parsed_recipient: string | null;
   parsed_reference_no: string | null;
+  parsed_note: string | null;
   status: ReceiptScanStatus;
   created_at: string;
 }

@@ -27,6 +27,7 @@ export function useReceiptProcessor() {
                   date: scan.parsed_date,
                   recipientName: scan.parsed_recipient,
                   referenceNo: scan.parsed_reference_no,
+                  note: scan.parsed_note,
                 }
               : undefined,
         });

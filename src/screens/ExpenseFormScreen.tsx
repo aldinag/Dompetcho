@@ -70,7 +70,9 @@ export function ExpenseFormScreen() {
   const [categoryId, setCategoryId] = useState<string | null>(
     editingExpense ? editingExpense.category_id : isReceiptFlow ? defaultCategoryId : null,
   );
-  const [note, setNote] = useState<string>(editingExpense?.note ?? params?.prefill?.recipientName ?? '');
+  const [note, setNote] = useState<string>(
+    editingExpense?.note ?? params?.prefill?.note ?? params?.prefill?.recipientName ?? '',
+  );
   // Receipts are always an outgoing transfer — the toggle only makes sense for manual entry
   // and editing.
   const [type, setType] = useState<TransactionType>(editingExpense?.type ?? 'expense');
