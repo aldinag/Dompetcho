@@ -255,6 +255,13 @@ export function ExpenseFormScreen() {
             </View>
           )}
 
+          {isReceiptFlow && params?.transactionWarning && (
+            <View style={[styles.warningBanner, { backgroundColor: theme.background, borderColor: theme.warning }]}>
+              <Icon name="warning" size={20} color={theme.warning} />
+              <Text style={[styles.warningBannerText, { color: theme.text }]}>{params.transactionWarning}</Text>
+            </View>
+          )}
+
           <AmountInput value={amount} onChangeValue={setAmount} autoFocus={!isReceiptFlow && !isEditFlow} />
 
           {!isReceiptFlow && (
@@ -387,6 +394,22 @@ const styles = StyleSheet.create({
     ...typography.caption,
     flex: 1,
     lineHeight: 18,
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+  },
+  warningBannerText: {
+    ...typography.caption,
+    flex: 1,
+    lineHeight: 18,
+    fontWeight: '600',
   },
   typeToggle: {
     flexDirection: 'row',

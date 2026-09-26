@@ -17,6 +17,9 @@ export type RootStackParamList = {
     imageUri?: string;
     bankDetected?: BankDetected;
     prefill?: ExpenseFormPrefill;
+    /** Bahasa Indonesia warning when the receipt doesn't look like a confirmed successful
+     * transaction (e.g. no "Berhasil" found, or a failure/pending keyword found instead). */
+    transactionWarning?: string | null;
     /** Editing an existing expense — its current values are read from the store by id. */
     expenseId?: string;
   } | undefined;

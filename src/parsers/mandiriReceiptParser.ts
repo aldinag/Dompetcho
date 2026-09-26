@@ -149,6 +149,24 @@ function parseReferenceNo(rawText: string): string | null {
   return null;
 }
 
+// NOTE ON TUNING: there's no real sample of a failed or pending Livin' receipt in the test
+// fixtures yet (every real fixture captured so far is a successful transaction) — this is
+// written purely from the success-keyword-absent heuristic below. A real failed-receipt
+// fixture, once available, would help confirm whether Livin' actually uses these exact
+// failure/pending words or something else entirely.
+function parseTransactionWarning(rawText: string): string | null {
+  if (/\b(gagal|ditolak|dibatalkan)\b/i.test(rawText)) {
+    return 'Struk ini tampak menunjukkan transaksi gagal — periksa kembali sebelum menyimpan.';
+  }
+  if (/\b(diproses|pending|tertunda|menunggu)\b/i.test(rawText)) {
+    return 'Struk ini tampak menunjukkan transaksi masih diproses — periksa kembali sebelum menyimpan.';
+  }
+  if (!/berhasil/i.test(rawText)) {
+    return 'Tidak ditemukan tanda transaksi berhasil pada struk ini — periksa kembali sebelum menyimpan.';
+  }
+  return null;
+}
+
 export const mandiriReceiptParser: ReceiptParser = {
   bankId: 'mandiri',
 
@@ -170,6 +188,7 @@ export const mandiriReceiptParser: ReceiptParser = {
       time,
       recipientName: parseRecipient(rawText),
       referenceNo: parseReferenceNo(rawText),
+      transactionWarning: parseTransactionWarning(rawText),
     };
   },
 };

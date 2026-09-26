@@ -6,6 +6,12 @@ export interface ParsedReceiptFields {
   time: string | null;
   recipientName: string | null;
   referenceNo: string | null;
+  /**
+   * Bahasa Indonesia message when the OCR text doesn't clearly indicate a successful
+   * transaction (no success keyword found, or a failure/pending keyword found instead) —
+   * null when the receipt looks like a normal successful transaction.
+   */
+  transactionWarning: string | null;
 }
 
 export const EMPTY_PARSED_FIELDS: ParsedReceiptFields = {
@@ -14,6 +20,7 @@ export const EMPTY_PARSED_FIELDS: ParsedReceiptFields = {
   time: null,
   recipientName: null,
   referenceNo: null,
+  transactionWarning: null,
 };
 
 /**

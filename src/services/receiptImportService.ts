@@ -5,7 +5,15 @@ import { CreateExpenseInput, createExpense } from './expenseService';
 import { Expense, ReceiptScan } from '../types';
 import { timestampFromLocal } from '../utils/timestamp';
 
-export async function importReceiptImage(userId: string, imageUri: string): Promise<ReceiptScan> {
+export interface ReceiptImportResult {
+  scan: ReceiptScan;
+  /** Bahasa Indonesia warning when the OCR text doesn't clearly indicate a successful
+   * transaction — see `ParsedReceiptFields.transactionWarning`. Not persisted to the
+   * receipt_scans row; derived fresh each time from raw_ocr_text. */
+  transactionWarning: string | null;
+}
+
+export async function importReceiptImage(userId: string, imageUri: string): Promise<ReceiptImportResult> {
   const rawText = await recognizeText(imageUri);
   const parser = detectParser(rawText);
   const parsed = parser?.parse(rawText) ?? null;
@@ -26,7 +34,7 @@ export async function importReceiptImage(userId: string, imageUri: string): Prom
     .select('*')
     .single();
   if (error) throw error;
-  return data;
+  return { scan: data, transactionWarning: parsed?.transactionWarning ?? null };
 }
 
 export async function confirmReceiptScan(

@@ -42,6 +42,7 @@ describe('mandiriReceiptParser', () => {
     expect(result.time).toBe('14:32');
     expect(result.recipientName).toBe('BUDI SANTOSO');
     expect(result.referenceNo).toBe('2608261432ABCDEF');
+    expect(result.transactionWarning).toBeNull();
   });
 
   it('leaves fields null instead of guessing when text is unparseable', () => {
@@ -50,6 +51,29 @@ describe('mandiriReceiptParser', () => {
     expect(result.date).toBeNull();
     expect(result.recipientName).toBeNull();
     expect(result.referenceNo).toBeNull();
+    // No "Berhasil" (or any other success indicator) anywhere in the text, so this should
+    // warn rather than be silently treated as a normal successful transaction.
+    expect(result.transactionWarning).not.toBeNull();
+  });
+});
+
+describe('mandiriReceiptParser — transaction status warning', () => {
+  // No real failed/pending Livin' receipt sample exists yet — these are synthetic snippets
+  // exercising the success-keyword-absent heuristic (see the NOTE ON TUNING comment above
+  // parseTransactionWarning). Revisit once a real failed-receipt fixture is available.
+  it('warns when a failure keyword is present', () => {
+    const result = mandiriReceiptParser.parse('Livin by Mandiri\nTransfer Gagal\nRp50.000');
+    expect(result.transactionWarning).toMatch(/gagal/i);
+  });
+
+  it('warns when a pending keyword is present', () => {
+    const result = mandiriReceiptParser.parse('Livin by Mandiri\nPembayaran Sedang Diproses\nRp50.000');
+    expect(result.transactionWarning).toMatch(/diproses/i);
+  });
+
+  it('does not warn on a normal successful receipt', () => {
+    const result = mandiriReceiptParser.parse(SAMPLE_MANDIRI_OCR_TEXT);
+    expect(result.transactionWarning).toBeNull();
   });
 });
 
@@ -100,6 +124,7 @@ describe('mandiriReceiptParser — real QRIS payment receipt', () => {
     expect(result.time).toBe('08:27');
     expect(result.recipientName).toBe('PT Tokopedia');
     expect(result.referenceNo).toBe('2609221122568501967');
+    expect(result.transactionWarning).toBeNull();
   });
 });
 
@@ -154,6 +179,7 @@ describe('mandiriReceiptParser — real bill payment receipt', () => {
     expect(result.time).toBe('19:49');
     expect(result.recipientName).toBe('Telkom/Indihome');
     expect(result.referenceNo).toBe('7026090619449471952');
+    expect(result.transactionWarning).toBeNull();
   });
 });
 
@@ -199,6 +225,7 @@ describe('mandiriReceiptParser — real inter-bank transfer receipt (BI-Fast)', 
     expect(result.time).toBe('13:29');
     expect(result.recipientName).toBe('TEGAR ALDINA GALARI');
     expect(result.referenceNo).toBe('20260920BMRIIDJA');
+    expect(result.transactionWarning).toBeNull();
   });
 });
 
@@ -234,6 +261,7 @@ describe('mandiriReceiptParser — real same-bank transfer receipt', () => {
     expect(result.time).toBe('13:21');
     expect(result.recipientName).toBe('MUTIARA RAHMAYANI');
     expect(result.referenceNo).toBe('2609161121035681684');
+    expect(result.transactionWarning).toBeNull();
   });
 });
 
@@ -274,5 +302,6 @@ describe('mandiriReceiptParser — real top-up receipt', () => {
     expect(result.time).toBe('14:53');
     expect(result.recipientName).toBe('Telkomsel Prepaid');
     expect(result.referenceNo).toBe('7026090914531712269');
+    expect(result.transactionWarning).toBeNull();
   });
 });

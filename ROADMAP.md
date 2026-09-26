@@ -66,7 +66,7 @@ being added to this file by a human:
       `receiptImportService.ts`, and prefill the note field from it when present (falling
       back to the current recipient-name behavior when it's absent).
 
-- [ ] **Warn instead of silently importing a failed/pending transaction.** The parser
+- [x] **Warn instead of silently importing a failed/pending transaction.** The parser
       assumes every receipt screenshot is a successful transaction. If OCR text doesn't
       contain a success indicator (e.g. "Berhasil"), or contains a clear failure/pending one
       (e.g. "Gagal", "Diproses", "Pending"), surface a warning on the review screen instead
