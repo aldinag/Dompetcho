@@ -1,5 +1,7 @@
 export function formatRupiah(amount: number): string {
-  return `Rp ${Math.round(amount).toLocaleString('id-ID')}`;
+  const rounded = Math.round(amount);
+  const sign = rounded < 0 ? '-' : '';
+  return `${sign}Rp ${Math.abs(rounded).toLocaleString('id-ID')}`;
 }
 
 export function formatDayHeader(timestamp: string): string {
