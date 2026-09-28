@@ -61,7 +61,7 @@ being added to this file by a human:
       it unless "Auto Confirm User" is on project-wide — note whichever behavior ships in
       the PR description so it's a visible decision, not a silent one).
 
-- [ ] **Extract "Keterangan Transaksi" from receipts into the note field.** Several real
+- [x] **Extract "Keterangan Transaksi" from receipts into the note field.** Several real
       Livin' receipts carry a personal memo under this label (e.g. "rumah sep 26") that
       maps directly to the app's own Catatan/note concept, but the parser doesn't extract
       it at all today — `ExpenseFormScreen` currently prefills the note with the recipient
@@ -113,7 +113,7 @@ being added to this file by a human:
 
 ## Maintenance / hardening
 
-- [ ] **Fix negative "Sisa Saldo" formatting.** `formatRupiah` on a negative number
+- [x] **Fix negative "Sisa Saldo" formatting.** `formatRupiah` on a negative number
       currently renders like `Rp -50.000`. Indonesian convention is `-Rp 50.000`. Fix in
       `src/utils/format.ts` and add a test case.
 

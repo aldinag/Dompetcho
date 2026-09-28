@@ -53,6 +53,9 @@ create table if not exists public.receipt_scans (
   created_at timestamptz not null default now()
 );
 
+-- Safe to re-run against a database that already had `receipt_scans` without `parsed_note`.
+alter table public.receipt_scans add column if not exists parsed_note text;
+
 -- Safe to re-run: converts older `date` (calendar day) columns to timestamptz once. Existing
 -- rows become midnight WIB on their day, so they keep the same local date in Indonesia.
 do $$
