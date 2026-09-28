@@ -5,6 +5,7 @@ export type ExpenseFormPrefill = {
   date?: string | null;
   recipientName?: string | null;
   referenceNo?: string | null;
+  note?: string | null;
 };
 
 export type RootStackParamList = {
