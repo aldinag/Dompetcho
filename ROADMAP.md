@@ -113,7 +113,7 @@ being added to this file by a human:
 
 ## Maintenance / hardening
 
-- [ ] **Fix negative "Sisa Saldo" formatting.** `formatRupiah` on a negative number
+- [x] **Fix negative "Sisa Saldo" formatting.** `formatRupiah` on a negative number
       currently renders like `Rp -50.000`. Indonesian convention is `-Rp 50.000`. Fix in
       `src/utils/format.ts` and add a test case.
 
