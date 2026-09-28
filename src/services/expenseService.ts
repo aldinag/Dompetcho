@@ -5,6 +5,7 @@ export interface CreateExpenseInput {
   userId: string;
   amount: number;
   categoryId: string | null;
+  accountId: string | null;
   note: string | null;
   date: string; // ISO timestamp
   source: ExpenseSource;
@@ -28,6 +29,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<Expense>
       user_id: input.userId,
       amount: input.amount,
       category_id: input.categoryId,
+      account_id: input.accountId,
       note: input.note,
       date: input.date,
       source: input.source,
@@ -42,6 +44,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<Expense>
 export interface UpdateExpenseInput {
   amount: number;
   categoryId: string | null;
+  accountId: string | null;
   note: string | null;
   date: string; // ISO timestamp
   type: TransactionType;
@@ -56,6 +59,7 @@ export async function updateExpense(id: string, input: UpdateExpenseInput): Prom
     .update({
       amount: input.amount,
       category_id: input.categoryId,
+      account_id: input.accountId,
       note: input.note,
       date: input.date,
       type: input.type,

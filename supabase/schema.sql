@@ -56,6 +56,26 @@ create table if not exists public.receipt_scans (
 -- Safe to re-run against a database that already had `receipt_scans` without `parsed_note`.
 alter table public.receipt_scans add column if not exists parsed_note text;
 
+-- A source/payment-method *tag* on an expense — bank, e-wallet, or cash. Deliberately not a
+-- wallet: no balance is tracked per account, and it has no effect on Home's "Sisa Saldo".
+create table if not exists public.accounts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  name text not null,
+  kind text not null check (kind in ('bank', 'ewallet', 'cash')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists accounts_user_idx on public.accounts (user_id);
+
+-- Safe to re-run against a database that already had `expenses` without `account_id`.
+alter table public.expenses add column if not exists account_id uuid references public.accounts (id) on delete set null;
+
+-- Safe to re-run against a database that already had `receipt_scans` without
+-- `parsed_account_label` — the raw "Sumber Dana"/"Rekening Sumber" text, matched against the
+-- user's own accounts client-side (not stored as a resolved account_id here).
+alter table public.receipt_scans add column if not exists parsed_account_label text;
+
 -- Safe to re-run: converts older `date` (calendar day) columns to timestamptz once. Existing
 -- rows become midnight WIB on their day, so they keep the same local date in Indonesia.
 do $$
@@ -121,6 +141,7 @@ alter table public.users enable row level security;
 alter table public.categories enable row level security;
 alter table public.expenses enable row level security;
 alter table public.receipt_scans enable row level security;
+alter table public.accounts enable row level security;
 
 -- Postgres has no `create policy if not exists`, so each is dropped first — safe to re-run.
 drop policy if exists "Users can view their own profile" on public.users;
@@ -177,4 +198,20 @@ create policy "Users can update their own receipt scans" on public.receipt_scans
 
 drop policy if exists "Users can delete their own receipt scans" on public.receipt_scans;
 create policy "Users can delete their own receipt scans" on public.receipt_scans
+  for delete using (user_id = auth.uid());
+
+drop policy if exists "Users can view their own accounts" on public.accounts;
+create policy "Users can view their own accounts" on public.accounts
+  for select using (user_id = auth.uid());
+
+drop policy if exists "Users can insert their own accounts" on public.accounts;
+create policy "Users can insert their own accounts" on public.accounts
+  for insert with check (user_id = auth.uid());
+
+drop policy if exists "Users can update their own accounts" on public.accounts;
+create policy "Users can update their own accounts" on public.accounts
+  for update using (user_id = auth.uid());
+
+drop policy if exists "Users can delete their own accounts" on public.accounts;
+create policy "Users can delete their own accounts" on public.accounts
   for delete using (user_id = auth.uid());

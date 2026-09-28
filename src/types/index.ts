@@ -6,6 +6,8 @@ export type BankDetected = 'mandiri' | 'unrecognized';
 
 export type ReceiptScanStatus = 'pending_review' | 'confirmed' | 'discarded';
 
+export type AccountKind = 'bank' | 'ewallet' | 'cash';
+
 export interface AppUser {
   id: string;
   email: string | null;
@@ -23,11 +25,22 @@ export interface Category {
   is_default: boolean;
 }
 
+// A source/payment-method tag, not a wallet — no per-account balance is tracked or derived
+// from this. Home's "Sisa Saldo" stays one overall number regardless of account tagging.
+export interface Account {
+  id: string;
+  user_id: string;
+  name: string;
+  kind: AccountKind;
+  created_at: string;
+}
+
 export interface Expense {
   id: string;
   user_id: string;
   amount: number;
   category_id: string | null;
+  account_id: string | null;
   note: string | null;
   date: string; // ISO timestamp of when it happened (timestamptz)
   source: ExpenseSource;
@@ -48,6 +61,7 @@ export interface ReceiptScan {
   parsed_recipient: string | null;
   parsed_reference_no: string | null;
   parsed_note: string | null;
+  parsed_account_label: string | null;
   status: ReceiptScanStatus;
   created_at: string;
 }
