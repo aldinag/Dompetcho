@@ -257,9 +257,12 @@ src/
 supabase/schema.sql
 ```
 
-## Non-goals for MVP1 (by design)
+## Non-goals (by design)
 
-Other banks/e-wallets, cloud OCR, multiple accounts, budgets, subscriptions, push
-notifications, recurring-transaction detection. The parser is structured so a bank/e-wallet
-or a cloud LLM+OCR path can be added in `src/parsers/` later without touching the OCR
-pipeline or the review/confirm screen — see `src/parsers/index.ts`.
+Cloud OCR, per-account balance tracking ("mini-wallets"), budgets, subscriptions, push
+notifications, recurring-transaction detection, banks other than Mandiri. See
+`ROADMAP.md`'s "Non-goals" section for the current, authoritative list and why it's changed
+since MVP1 — multiple accounts (as a source/payment-method tag, not a wallet) and e-wallet
+OCR support (Gojek/GoPay, Grab) are now in scope and tracked there. The parser is structured
+so a new bank/e-wallet or a cloud LLM+OCR path can be added in `src/parsers/` without
+touching the OCR pipeline or the review/confirm screen — see `src/parsers/index.ts`.

@@ -9,10 +9,15 @@ pull in extra items or drift into adjacent cleanup that isn't listed here.
 Carried over from the original MVP1 spec — do not implement these without the item first
 being added to this file by a human:
 
-- No wallets/multiple accounts
 - No budgets
 - No subscriptions/recurring-expense tracking
 - No push notifications
+- No per-account balance tracking ("mini-wallets"). Multiple accounts are now in scope as a
+  source/payment-method *tag* on each expense (see Next MVP below) — but a running balance
+  per account is not. Home's "Sisa Saldo" stays one overall number.
+- No support for banks other than Mandiri (Livin'). E-wallets (Gojek/GoPay, Grab) are now in
+  scope as new OCR parser targets (see Next MVP below) — but other *banks* (BCA, BNI, etc.)
+  are not, until a human adds that here.
 
 ## Branching & release flow
 
@@ -74,6 +79,37 @@ being added to this file by a human:
       failed receipt in the test fixtures yet — write this from the success-keyword-absent
       heuristic and leave a comment noting a real failed-receipt fixture would sharpen it
       further.
+
+- [ ] **Tag each expense with a source account.** Add an `accounts` table (`id`, `user_id`,
+      `name`, `kind`: `'bank' | 'ewallet' | 'cash'`, `created_at`) and a nullable
+      `account_id` FK on `expenses` (schema migration, see ground rules above). Users manage
+      their own list — a simple "Kelola Akun" flow (create/rename/delete) — and pick one per
+      expense in `ExpenseFormScreen`, defaulting to unset. For receipt imports, extract the
+      "Sumber Dana" line Mandiri receipts already show (e.g. "TEGAR ALDINA GALARI / Bank
+      Mandiri - •••••••7448") into a new parser field, and try to match it to an existing
+      account by name before prompting the user to create one. This is a source/payment-
+      method *tag*, not a wallet — no per-account balance, no effect on Home's Sisa Saldo;
+      it's a new filter/breakdown dimension for later (e.g. on Summary). Likely bigger than
+      a typical item — fine to split into a schema+parser PR followed by a UI PR if that's
+      more reviewable; note the split in each PR description.
+
+- [ ] **Add a Gojek/GoPay receipt parser.** Follow the exact pattern in
+      `src/parsers/mandiriReceiptParser.ts` (a `ReceiptParser` with `detect`/`parse`,
+      registered in `src/parsers/index.ts`) for GoPay transaction confirmation screenshots.
+      Widen the `BankDetected` type (`src/types/index.ts`) and the `bank_detected` check
+      constraint in `supabase/schema.sql` to add `'gojek'`. **There is no real sample of a
+      GoPay receipt in the test fixtures yet** — the same situation Mandiri's parser started
+      in. Build a best-effort first pass from publicly-known GoPay receipt layout
+      conventions, ship it behind the same "not yet validated against real OCR output"
+      caveat the Mandiri parser originally shipped with (see README's tuning section), and
+      leave a comment asking for a real screenshot to tune against — don't block the PR on
+      getting one.
+
+- [ ] **Add a Grab receipt parser.** Same approach and same caveat as the Gojek item above —
+      a new `ReceiptParser` for Grab's transaction confirmation screenshots (rides/food,
+      paid via GrabPay or an in-app OVO balance), registered the same way, adding `'grab'`
+      to `BankDetected` and the schema check constraint. No real sample exists yet; ship a
+      best-effort first pass and ask for a real screenshot to tune against.
 
 ## Maintenance / hardening
 
