@@ -8,6 +8,12 @@ export interface ParsedReceiptFields {
   referenceNo: string | null;
   /** The sender's own memo, from the "Keterangan Transaksi" field — not shown on every receipt. */
   parsedNote: string | null;
+  /**
+   * Bahasa Indonesia message when the OCR text doesn't clearly indicate a successful
+   * transaction (no success keyword found, or a failure/pending keyword found instead) —
+   * null when the receipt looks like a normal successful transaction.
+   */
+  transactionWarning: string | null;
 }
 
 export const EMPTY_PARSED_FIELDS: ParsedReceiptFields = {
@@ -17,6 +23,7 @@ export const EMPTY_PARSED_FIELDS: ParsedReceiptFields = {
   recipientName: null,
   referenceNo: null,
   parsedNote: null,
+  transactionWarning: null,
 };
 
 /**

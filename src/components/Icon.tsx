@@ -17,7 +17,8 @@ export type IconName =
   | 'transfer'
   | 'arrow-up'
   | 'arrow-down'
-  | 'other';
+  | 'other'
+  | 'warning';
 
 interface IconProps {
   name: IconName;
@@ -52,6 +53,7 @@ const PATHS: Record<IconName, string> = {
   'arrow-up': 'M12 19V5 M6 11l6-6 6 6',
   'arrow-down': 'M12 5v14 M6 13l6 6 6-6',
   other: 'M6 12h.01 M12 12h.01 M18 12h.01',
+  warning: 'M12 4 21 20 3 20 12 4Z M12 10v4 M12 16.7v.01',
 };
 
 export function Icon({ name, size = 24, color = '#000000', strokeWidth = 2 }: IconProps) {

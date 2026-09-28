@@ -15,11 +15,12 @@ export function useReceiptProcessor() {
       if (!user) return;
       setProcessing(true);
       try {
-        const scan = await importReceiptImage(user.id, imageUri);
+        const { scan, transactionWarning } = await importReceiptImage(user.id, imageUri);
         navigateToExpenseForm({
           receiptScanId: scan.id,
           imageUri,
           bankDetected: scan.bank_detected,
+          transactionWarning,
           prefill:
             scan.bank_detected === 'mandiri'
               ? {
