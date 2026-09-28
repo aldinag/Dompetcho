@@ -80,7 +80,7 @@ being added to this file by a human:
       heuristic and leave a comment noting a real failed-receipt fixture would sharpen it
       further.
 
-- [ ] **Tag each expense with a source account.** Add an `accounts` table (`id`, `user_id`,
+- [x] **Tag each expense with a source account.** Add an `accounts` table (`id`, `user_id`,
       `name`, `kind`: `'bank' | 'ewallet' | 'cash'`, `created_at`) and a nullable
       `account_id` FK on `expenses` (schema migration, see ground rules above). Users manage
       their own list — a simple "Kelola Akun" flow (create/rename/delete) — and pick one per

@@ -14,6 +14,11 @@ export interface ParsedReceiptFields {
    * null when the receipt looks like a normal successful transaction.
    */
   transactionWarning: string | null;
+  /**
+   * The raw "Sumber Dana"/"Rekening Sumber" line (e.g. "TEGAR ALDINA GALARI / Bank Mandiri -
+   * •••••••7448") — matched against the user's own accounts by name, not guessed at here.
+   */
+  sourceAccountLabel: string | null;
 }
 
 export const EMPTY_PARSED_FIELDS: ParsedReceiptFields = {
@@ -24,6 +29,7 @@ export const EMPTY_PARSED_FIELDS: ParsedReceiptFields = {
   referenceNo: null,
   parsedNote: null,
   transactionWarning: null,
+  sourceAccountLabel: null,
 };
 
 /**

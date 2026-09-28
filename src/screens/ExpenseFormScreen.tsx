@@ -18,6 +18,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AccountPicker } from '../components/AccountPicker';
 import { AmountInput } from '../components/AmountInput';
 import { CategoryPicker } from '../components/CategoryPicker';
 import { Icon } from '../components/Icon';
@@ -50,6 +51,7 @@ export function ExpenseFormScreen() {
 
   const user = useAuthStore(state => state.user);
   const categories = useExpenseStore(state => state.categories);
+  const accounts = useExpenseStore(state => state.accounts);
   const expenses = useExpenseStore(state => state.expenses);
   const addExpenseOptimistic = useExpenseStore(state => state.addExpenseOptimistic);
   const replaceExpense = useExpenseStore(state => state.replaceExpense);
@@ -70,6 +72,9 @@ export function ExpenseFormScreen() {
   const [categoryId, setCategoryId] = useState<string | null>(
     editingExpense ? editingExpense.category_id : isReceiptFlow ? defaultCategoryId : null,
   );
+  const [accountId, setAccountId] = useState<string | null>(
+    editingExpense ? editingExpense.account_id : params?.prefill?.accountId ?? null,
+  );
   const [note, setNote] = useState<string>(
     editingExpense?.note ?? params?.prefill?.note ?? params?.prefill?.recipientName ?? '',
   );
@@ -84,6 +89,7 @@ export function ExpenseFormScreen() {
     setAmount(null);
     setDate(nowTimestamp());
     setCategoryId(null);
+    setAccountId(null);
     setNote('');
     setType('expense');
   }
@@ -124,6 +130,7 @@ export function ExpenseFormScreen() {
         ...editingExpense,
         amount,
         category_id: categoryId,
+        account_id: accountId,
         note: note || null,
         date,
         type,
@@ -134,7 +141,7 @@ export function ExpenseFormScreen() {
       navigation.goBack();
 
       try {
-        const real = await updateExpense(expenseId, { amount, categoryId, note: note || null, date, type });
+        const real = await updateExpense(expenseId, { amount, categoryId, accountId, note: note || null, date, type });
         replaceExpense(expenseId, real);
       } catch (error: any) {
         replaceExpense(expenseId, editingExpense);
@@ -152,6 +159,7 @@ export function ExpenseFormScreen() {
       user_id: user.id,
       amount,
       category_id: categoryId,
+      account_id: accountId,
       note: note || null,
       date,
       source: isReceiptFlow ? 'receipt_ocr' : 'manual',
@@ -176,6 +184,7 @@ export function ExpenseFormScreen() {
         userId: user.id,
         amount,
         categoryId,
+        accountId,
         note: note || null,
         date,
         source,
@@ -304,6 +313,13 @@ export function ExpenseFormScreen() {
           )}
 
           <CategoryPicker categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
+
+          <AccountPicker
+            accounts={accounts}
+            selectedId={accountId}
+            onSelect={setAccountId}
+            onManage={() => navigation.navigate('ManageAccounts')}
+          />
 
           <View style={[styles.formCard, cardShadow, { backgroundColor: theme.surface }]}>
             <View style={styles.formRow}>
