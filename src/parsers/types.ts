@@ -6,6 +6,8 @@ export interface ParsedReceiptFields {
   time: string | null;
   recipientName: string | null;
   referenceNo: string | null;
+  /** The "Keterangan Transaksi" memo line, e.g. "rumah sep 26" — maps to the app's note field. */
+  note: string | null;
 }
 
 export const EMPTY_PARSED_FIELDS: ParsedReceiptFields = {
@@ -14,6 +16,7 @@ export const EMPTY_PARSED_FIELDS: ParsedReceiptFields = {
   time: null,
   recipientName: null,
   referenceNo: null,
+  note: null,
 };
 
 /**

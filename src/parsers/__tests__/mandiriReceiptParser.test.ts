@@ -42,6 +42,9 @@ describe('mandiriReceiptParser', () => {
     expect(result.time).toBe('14:32');
     expect(result.recipientName).toBe('BUDI SANTOSO');
     expect(result.referenceNo).toBe('2608261432ABCDEF');
+    // This fixture has no "Keterangan Transaksi" line — this sample was reconstructed
+    // before that field was known to exist on real receipts.
+    expect(result.note).toBeNull();
   });
 
   it('leaves fields null instead of guessing when text is unparseable', () => {
@@ -50,6 +53,7 @@ describe('mandiriReceiptParser', () => {
     expect(result.date).toBeNull();
     expect(result.recipientName).toBeNull();
     expect(result.referenceNo).toBeNull();
+    expect(result.note).toBeNull();
   });
 });
 
@@ -100,6 +104,8 @@ describe('mandiriReceiptParser — real QRIS payment receipt', () => {
     expect(result.time).toBe('08:27');
     expect(result.recipientName).toBe('PT Tokopedia');
     expect(result.referenceNo).toBe('2609221122568501967');
+    // QRIS payments have no "Keterangan Transaksi" line.
+    expect(result.note).toBeNull();
   });
 });
 
@@ -154,6 +160,8 @@ describe('mandiriReceiptParser — real bill payment receipt', () => {
     expect(result.time).toBe('19:49');
     expect(result.recipientName).toBe('Telkom/Indihome');
     expect(result.referenceNo).toBe('7026090619449471952');
+    // Bill payments have no "Keterangan Transaksi" line.
+    expect(result.note).toBeNull();
   });
 });
 
@@ -199,6 +207,7 @@ describe('mandiriReceiptParser — real inter-bank transfer receipt (BI-Fast)', 
     expect(result.time).toBe('13:29');
     expect(result.recipientName).toBe('TEGAR ALDINA GALARI');
     expect(result.referenceNo).toBe('20260920BMRIIDJA');
+    expect(result.note).toBe('rumah sep 26');
   });
 });
 
@@ -234,6 +243,7 @@ describe('mandiriReceiptParser — real same-bank transfer receipt', () => {
     expect(result.time).toBe('13:21');
     expect(result.recipientName).toBe('MUTIARA RAHMAYANI');
     expect(result.referenceNo).toBe('2609161121035681684');
+    expect(result.note).toBe('september 26');
   });
 });
 
@@ -274,5 +284,7 @@ describe('mandiriReceiptParser — real top-up receipt', () => {
     expect(result.time).toBe('14:53');
     expect(result.recipientName).toBe('Telkomsel Prepaid');
     expect(result.referenceNo).toBe('7026090914531712269');
+    // Top-ups have no "Keterangan Transaksi" line.
+    expect(result.note).toBeNull();
   });
 });

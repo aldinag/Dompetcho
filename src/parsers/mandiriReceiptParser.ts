@@ -118,6 +118,11 @@ function parseRecipient(rawText: string): string | null {
   return value.split(/\s+-\s+/)[0].trim() || null;
 }
 
+function parseNote(rawText: string): string | null {
+  const lines = normalizeLines(rawText);
+  return findValueAfterLabel(lines, /keterangan transaksi/i);
+}
+
 function parseReferenceNo(rawText: string): string | null {
   const lines = normalizeLines(rawText);
   // "No. Ref." (the header's primary transaction reference) is tried before the fuller
@@ -170,6 +175,7 @@ export const mandiriReceiptParser: ReceiptParser = {
       time,
       recipientName: parseRecipient(rawText),
       referenceNo: parseReferenceNo(rawText),
+      note: parseNote(rawText),
     };
   },
 };
