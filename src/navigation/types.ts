@@ -6,6 +6,7 @@ export type ExpenseFormPrefill = {
   recipientName?: string | null;
   referenceNo?: string | null;
   note?: string | null;
+  accountId?: string | null;
 };
 
 export type RootStackParamList = {
@@ -13,6 +14,7 @@ export type RootStackParamList = {
   Login: undefined;
   Main: undefined;
   Profile: undefined;
+  ManageAccounts: undefined;
   ExpenseForm: {
     receiptScanId?: string;
     imageUri?: string;

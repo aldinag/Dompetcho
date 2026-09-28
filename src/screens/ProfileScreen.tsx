@@ -68,6 +68,18 @@ export function ProfileScreen() {
         </View>
 
         <TouchableOpacity
+          style={[styles.card, cardShadow, { backgroundColor: theme.surface }]}
+          onPress={() => navigation.navigate('ManageAccounts')}
+          accessibilityRole="button"
+          accessibilityLabel="Kelola Akun"
+        >
+          <View style={styles.navRow}>
+            <Text style={[styles.rowValue, { color: theme.text }]}>Kelola Akun</Text>
+            <Icon name="chevron-right" size={20} color={theme.textMuted} />
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.card, styles.logoutCard, cardShadow, { backgroundColor: theme.surface }]}
           onPress={confirmLogout}
           accessibilityRole="button"
@@ -130,6 +142,11 @@ const styles = StyleSheet.create({
   },
   row: {
     gap: spacing['2xs'],
+  },
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   rowLabel: {
     ...typography.caption,

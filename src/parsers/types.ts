@@ -8,6 +8,11 @@ export interface ParsedReceiptFields {
   referenceNo: string | null;
   /** The sender's own memo, from the "Keterangan Transaksi" field — not shown on every receipt. */
   parsedNote: string | null;
+  /**
+   * The raw "Sumber Dana"/"Rekening Sumber" line (e.g. "TEGAR ALDINA GALARI / Bank Mandiri -
+   * •••••••7448") — matched against the user's own accounts by name, not guessed at here.
+   */
+  sourceAccountLabel: string | null;
 }
 
 export const EMPTY_PARSED_FIELDS: ParsedReceiptFields = {
@@ -17,6 +22,7 @@ export const EMPTY_PARSED_FIELDS: ParsedReceiptFields = {
   recipientName: null,
   referenceNo: null,
   parsedNote: null,
+  sourceAccountLabel: null,
 };
 
 /**

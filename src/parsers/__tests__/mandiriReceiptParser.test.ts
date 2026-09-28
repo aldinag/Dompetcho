@@ -45,6 +45,7 @@ describe('mandiriReceiptParser', () => {
     // No "Keterangan Transaksi" label on this receipt layout — left null, not guessed
     // from "Berita" (a different field entirely).
     expect(result.parsedNote).toBeNull();
+    expect(result.sourceAccountLabel).toBe('••• 1234');
   });
 
   it('leaves fields null instead of guessing when text is unparseable', () => {
@@ -54,6 +55,7 @@ describe('mandiriReceiptParser', () => {
     expect(result.recipientName).toBeNull();
     expect(result.referenceNo).toBeNull();
     expect(result.parsedNote).toBeNull();
+    expect(result.sourceAccountLabel).toBeNull();
   });
 });
 
@@ -105,6 +107,7 @@ describe('mandiriReceiptParser — real QRIS payment receipt', () => {
     expect(result.recipientName).toBe('PT Tokopedia');
     expect(result.referenceNo).toBe('2609221122568501967');
     expect(result.parsedNote).toBeNull();
+    expect(result.sourceAccountLabel).toBe('TEGAR ALDINA GALARI / Bank Mandiri - •••••••7448');
   });
 });
 
@@ -160,6 +163,7 @@ describe('mandiriReceiptParser — real bill payment receipt', () => {
     expect(result.recipientName).toBe('Telkom/Indihome');
     expect(result.referenceNo).toBe('7026090619449471952');
     expect(result.parsedNote).toBeNull();
+    expect(result.sourceAccountLabel).toBe('TEGAR ALDINA GALARI / Bank Mandiri - •••••••7448');
   });
 });
 
@@ -206,6 +210,7 @@ describe('mandiriReceiptParser — real inter-bank transfer receipt (BI-Fast)', 
     expect(result.recipientName).toBe('TEGAR ALDINA GALARI');
     expect(result.referenceNo).toBe('20260920BMRIIDJA');
     expect(result.parsedNote).toBe('rumah sep 26');
+    expect(result.sourceAccountLabel).toBe('TEGAR ALDINA GALARI / Bank Mandiri - •••••••7448');
   });
 });
 
@@ -242,6 +247,7 @@ describe('mandiriReceiptParser — real same-bank transfer receipt', () => {
     expect(result.recipientName).toBe('MUTIARA RAHMAYANI');
     expect(result.referenceNo).toBe('2609161121035681684');
     expect(result.parsedNote).toBe('september 26');
+    expect(result.sourceAccountLabel).toBe('TEGAR ALDINA GALARI / Bank Mandiri - •••••••7448');
   });
 });
 
@@ -283,5 +289,6 @@ describe('mandiriReceiptParser — real top-up receipt', () => {
     expect(result.recipientName).toBe('Telkomsel Prepaid');
     expect(result.referenceNo).toBe('7026090914531712269');
     expect(result.parsedNote).toBeNull();
+    expect(result.sourceAccountLabel).toBe('TEGAR ALDINA GALARI / Bank Mandiri - •••••••7448');
   });
 });

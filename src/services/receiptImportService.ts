@@ -22,6 +22,7 @@ export async function importReceiptImage(userId: string, imageUri: string): Prom
       parsed_recipient: parsed?.recipientName ?? null,
       parsed_reference_no: parsed?.referenceNo ?? null,
       parsed_note: parsed?.parsedNote ?? null,
+      parsed_account_label: parsed?.sourceAccountLabel ?? null,
       status: 'pending_review',
     })
     .select('*')

@@ -124,6 +124,27 @@ function parseNote(rawText: string): string | null {
   return value?.trim() || null;
 }
 
+/**
+ * "Sumber Dana"/"Rekening Sumber" (the label wording differs by receipt type, but the shape
+ * is the same) is followed by the account holder's name and, on most real receipts, a second
+ * line naming the bank and a masked account number (e.g. "Bank Mandiri - •••••••7448"). Only
+ * that second line is included when it actually looks like an account line (contains a "-"
+ * separator or a "•" mask) — otherwise the next label (e.g. "Ke") would get swallowed into
+ * the value on receipts that only show one line here.
+ */
+function parseSourceAccountLabel(rawText: string): string | null {
+  const lines = normalizeLines(rawText);
+  const labelIndex = lines.findIndex(line => /rekening sumber/i.test(line) || /sumber dana/i.test(line));
+  if (labelIndex === -1) return null;
+
+  const first = lines[labelIndex + 1];
+  if (!first) return null;
+
+  const second = lines[labelIndex + 2];
+  const looksLikeAccountLine = !!second && /[-•]/.test(second);
+  return looksLikeAccountLine ? `${first} / ${second}` : first;
+}
+
 function parseReferenceNo(rawText: string): string | null {
   const lines = normalizeLines(rawText);
   // "No. Ref." (the header's primary transaction reference) is tried before the fuller
@@ -177,6 +198,7 @@ export const mandiriReceiptParser: ReceiptParser = {
       recipientName: parseRecipient(rawText),
       referenceNo: parseReferenceNo(rawText),
       parsedNote: parseNote(rawText),
+      sourceAccountLabel: parseSourceAccountLabel(rawText),
     };
   },
 };
