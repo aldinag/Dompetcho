@@ -34,6 +34,15 @@ being added to this file by a human:
 
 ## Ground rules for automated work
 
+- **First, before picking a new item: re-check every other open PR for conflicts.** Run
+  `gh pr list --state open --json number,headRefName,mergeable`. A merge to `dev` (including
+  one this agent didn't open) can silently turn an unrelated open PR conflicting — it doesn't
+  self-heal and nobody gets notified. For each `mergeable: CONFLICTING` PR: check out its
+  branch, `git merge origin/dev`, resolve conflicts by keeping *both* sides' changes (two PRs
+  usually just add different fields to the same shared object/type — never drop one to keep
+  the other), rerun typecheck/lint/test, commit, and push to update the PR in place. Skip a
+  PR only if it's a known duplicate flagged for closing (say so in the report instead of
+  fixing it). Only after this pass is clean, move on to the next backlog item below.
 - **Never push to `main` or `dev` directly.** Work on a branch off `dev`, open a PR against
   `dev`, let CI run.
 - **Run `npm run typecheck`, `npm run lint`, and `npm test` before opening the PR.** All
