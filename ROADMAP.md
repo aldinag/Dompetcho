@@ -142,3 +142,41 @@ being added to this file by a human:
       `assembleRelease` on every merge to `dev`/`main` (and ships it to Firebase App
       Distribution) — so native build breakage now surfaces immediately rather than needing
       a separate job. This still doesn't replace testing on a real device.
+
+- [ ] **Fix the local `assembleDebug` + Metro dev loop: crashes with `PlatformConstants`
+      could not be found.** On this project's dev machine (Android emulator, API level of
+      "Pixel_10" AVD), launching a debug build connected to Metro crashes immediately with:
+      ```
+      Invariant Violation: TurboModuleRegistry.getEnforcing(...): 'PlatformConstants' could
+      not be found. ... Bridgeless mode: true. Modules loaded: {"NativeModules":[],
+      "TurboModules":[],"NotFound":["NativePerformanceCxx","NativePerformanceObserverCxx",
+      "PlatformConstants"]}
+      ```
+      followed by `AppRegistryBinding::startSurface failed. Global was not installed.` Every
+      core TurboModule comes back unregistered, not just app-specific ones. `assembleRelease`
+      is unaffected — `distribute.yml` ships working release builds to Firebase App
+      Distribution on every merge, and one was confirmed working on a real Android phone. Only
+      the local debug/Bridgeless dev loop is broken, which blocks taking real before/after
+      screenshots for PR evidence.
+
+      Already ruled out, each with hard evidence (see PR that added this item for the
+      full investigation):
+      - Stale Gradle/CMake cache — a true `./gradlew clean`, removing `android/app/.cxx`, and
+        a full native recompile (366/430 tasks actually executed) reproduced the identical
+        crash.
+      - JS/native version mismatch — both resolve to exactly `react-native@0.87.0`.
+      - The known upstream `appmodules.so` CMake glob bug
+        ([facebook/react-native#47352](https://github.com/facebook/react-native/issues/47352))
+        — already fixed in our installed `react-native` version; confirmed `OnLoad.cpp` is
+        actually compiled into `libappmodules.so` via `compile_commands.json`.
+      - Broken/duplicate symbol linkage — `llvm-nm`/`llvm-readelf` on the built
+        `libappmodules.so` confirm `JNI_OnLoad` is exported, `DefaultTurboModuleManagerDelegate
+        ::cxxModuleProvider`/`javaModuleProvider` are correctly `U` (undefined/external, not
+        duplicated), and `libreactnative.so` is a correct `NEEDED` entry.
+      - Stale app data/ART cache — a full `adb uninstall` + fresh install reproduced the
+        identical crash.
+
+      Next step needs a native debugger (lldb) attached to the running process to check
+      whether `JNI_OnLoad` in `libappmodules.so` actually executes and what
+      `DefaultTurboModuleManagerDelegate::cxxModuleProvider`/`javaModuleProvider` resolve to
+      at runtime — or trying a different AVD system image in case this one has a bad build.
