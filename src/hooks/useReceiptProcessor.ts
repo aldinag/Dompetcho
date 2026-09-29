@@ -26,7 +26,7 @@ export function useReceiptProcessor() {
           bankDetected: scan.bank_detected,
           transactionWarning,
           prefill:
-            scan.bank_detected === 'mandiri'
+            scan.bank_detected !== 'unrecognized'
               ? {
                   amount: scan.parsed_amount,
                   date: scan.parsed_date,

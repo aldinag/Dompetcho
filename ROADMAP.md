@@ -102,7 +102,7 @@ being added to this file by a human:
       a typical item — fine to split into a schema+parser PR followed by a UI PR if that's
       more reviewable; note the split in each PR description.
 
-- [ ] **Add a Gojek/GoPay receipt parser.** Follow the exact pattern in
+- [x] **Add a Gojek/GoPay receipt parser.** Follow the exact pattern in
       `src/parsers/mandiriReceiptParser.ts` (a `ReceiptParser` with `detect`/`parse`,
       registered in `src/parsers/index.ts`) for GoPay transaction confirmation screenshots.
       Widen the `BankDetected` type (`src/types/index.ts`) and the `bank_detected` check
