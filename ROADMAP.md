@@ -114,7 +114,7 @@ being added to this file by a human:
       leave a comment asking for a real screenshot to tune against — don't block the PR on
       getting one.
 
-- [ ] **Add a Grab receipt parser.** Same approach and same caveat as the Gojek item above —
+- [x] **Add a Grab receipt parser.** Same approach and same caveat as the Gojek item above —
       a new `ReceiptParser` for Grab's transaction confirmation screenshots (rides/food,
       paid via GrabPay or an in-app OVO balance), registered the same way, adding `'grab'`
       to `BankDetected` and the schema check constraint. No real sample exists yet; ship a
