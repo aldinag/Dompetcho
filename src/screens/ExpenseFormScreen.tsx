@@ -261,6 +261,8 @@ export function ExpenseFormScreen() {
               <Text style={[styles.receiptBannerText, { color: theme.text }]}>
                 {params?.bankDetected === 'mandiri'
                   ? 'Terdeteksi dari struk Mandiri — periksa nominal dan detail di bawah, semua bisa diubah.'
+                  : params?.bankDetected === 'gojek'
+                  ? 'Terdeteksi dari struk GoPay/Gojek — periksa nominal dan detail di bawah, semua bisa diubah.'
                   : 'Struk ini tidak bisa dibaca otomatis — isi detailnya secara manual di bawah.'}
               </Text>
             </View>
