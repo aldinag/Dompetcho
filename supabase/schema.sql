@@ -44,7 +44,7 @@ create table if not exists public.receipt_scans (
   expense_id uuid references public.expenses (id) on delete set null,
   raw_ocr_text text,
   image_uri text,
-  bank_detected text not null check (bank_detected in ('mandiri', 'gojek', 'unrecognized')),
+  bank_detected text not null check (bank_detected in ('mandiri', 'gojek', 'grab', 'unrecognized')),
   parsed_amount numeric(14, 2),
   parsed_date timestamptz,
   parsed_recipient text,
@@ -57,10 +57,10 @@ create table if not exists public.receipt_scans (
 alter table public.receipt_scans add column if not exists parsed_note text;
 
 -- Safe to re-run against a database whose `bank_detected` check constraint predates the
--- Gojek/GoPay parser (see `expenses_type_check` above for the same drop/add pattern).
+-- Gojek/GoPay or Grab parsers (see `expenses_type_check` above for the same drop/add pattern).
 alter table public.receipt_scans drop constraint if exists receipt_scans_bank_detected_check;
 alter table public.receipt_scans add constraint receipt_scans_bank_detected_check
-  check (bank_detected in ('mandiri', 'gojek', 'unrecognized'));
+  check (bank_detected in ('mandiri', 'gojek', 'grab', 'unrecognized'));
 
 -- A source/payment-method *tag* on an expense — bank, e-wallet, or cash. Deliberately not a
 -- wallet: no balance is tracked per account, and it has no effect on Home's "Sisa Saldo".

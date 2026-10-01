@@ -2,7 +2,7 @@ export type ExpenseSource = 'manual' | 'receipt_ocr';
 
 export type TransactionType = 'income' | 'expense';
 
-export type BankDetected = 'mandiri' | 'gojek' | 'unrecognized';
+export type BankDetected = 'mandiri' | 'gojek' | 'grab' | 'unrecognized';
 
 export type ReceiptScanStatus = 'pending_review' | 'confirmed' | 'discarded';
 
