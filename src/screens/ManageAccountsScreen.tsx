@@ -30,7 +30,11 @@ export function ManageAccountsScreen() {
   const loadInitial = useExpenseStore(state => state.loadInitial);
 
   useEffect(() => {
-    if (accounts.length === 0) loadInitial();
+    if (accounts.length === 0) {
+      loadInitial().catch((error: any) => {
+        Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

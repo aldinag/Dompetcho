@@ -1,7 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useEffect, useMemo } from 'react';
-import { Image, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo } from 'react';
+import { Alert, Image, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../components/EmptyState';
 import { ExpenseListItem } from '../components/ExpenseListItem';
@@ -61,8 +61,16 @@ export function HomeScreen() {
   const refresh = useExpenseStore(state => state.refresh);
 
   useEffect(() => {
-    loadInitial();
+    loadInitial().catch((error: any) => {
+      Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
+    });
   }, [loadInitial]);
+
+  const handleRefresh = useCallback(() => {
+    refresh().catch((error: any) => {
+      Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
+    });
+  }, [refresh]);
 
   const sections = useMemo(() => groupByDay(expenses), [expenses]);
 
@@ -156,7 +164,7 @@ export function HomeScreen() {
             </Text>
           </View>
         )}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.primary} />}
         ListEmptyComponent={<EmptyState />}
         contentContainerStyle={sections.length === 0 && styles.emptyContent}
         stickySectionHeadersEnabled

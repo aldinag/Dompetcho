@@ -31,8 +31,22 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     if (get().loading) return;
     set({ loading: true });
     try {
-      const [expenses, categories, accounts] = await Promise.all([listExpenses(), listCategories(), listAccounts()]);
-      set({ expenses, categories, accounts });
+      // allSettled, not all: these three are independent, and one failing (e.g. a schema
+      // migration for a newer field that hasn't been run yet) must not discard the others —
+      // that previously blanked the whole Home screen, including expenses that loaded fine.
+      const [expensesResult, categoriesResult, accountsResult] = await Promise.allSettled([
+        listExpenses(),
+        listCategories(),
+        listAccounts(),
+      ]);
+      if (expensesResult.status === 'fulfilled') set({ expenses: expensesResult.value });
+      if (categoriesResult.status === 'fulfilled') set({ categories: categoriesResult.value });
+      if (accountsResult.status === 'fulfilled') set({ accounts: accountsResult.value });
+
+      const firstFailure = [expensesResult, categoriesResult, accountsResult].find(
+        (r): r is PromiseRejectedResult => r.status === 'rejected',
+      );
+      if (firstFailure) throw firstFailure.reason;
     } finally {
       set({ loading: false });
     }
