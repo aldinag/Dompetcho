@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kebijakan Privasi — Dompetcho</title>
+<style>
+  :root {
+    --bg: #F7F8FA;
+    --surface: #FFFFFF;
+    --text: #111827;
+    --text-muted: #6B7280;
+    --border: #E5E7EB;
+    --primary: #1E3A8A;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0B1220;
+      --surface: #111827;
+      --text: #F9FAFB;
+      --text-muted: #9CA3AF;
+      --border: #1F2937;
+      --primary: #60A5FA;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+  }
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+  h1 {
+    font-size: 26px;
+    margin-bottom: 4px;
+    color: var(--primary);
+  }
+  .updated {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 32px;
+  }
+  h2 {
+    font-size: 19px;
+    margin-top: 36px;
+    margin-bottom: 8px;
+  }
+  p, li { font-size: 15px; }
+  ul { padding-left: 20px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+  }
+  a { color: var(--primary); }
+  .placeholder {
+    background: #FEF3C7;
+    color: #92400E;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  @media (prefers-color-scheme: dark) {
+    .placeholder { background: #78350F; color: #FDE68A; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Kebijakan Privasi Dompetcho</h1>
+  <p class="updated">Berlaku mulai: <span class="placeholder">[ISI TANGGAL PUBLIKASI]</span></p>
+
+  <p>
+    Dompetcho ("kami") adalah aplikasi pencatat pengeluaran pribadi untuk Android. Kebijakan
+    privasi ini menjelaskan data apa yang kami kumpulkan, bagaimana data itu digunakan, dan
+    pilihan yang Anda miliki. Dompetcho dibuat untuk satu tujuan: membantu Anda mencatat
+    transaksi keuangan pribadi Anda sendiri — bukan untuk mengiklankan, melacak, atau menjual
+    data Anda.
+  </p>
+
+  <h2>Data yang kami kumpulkan</h2>
+  <div class="card">
+    <p><strong>Informasi akun.</strong> Saat Anda masuk dengan Google, kami menerima nama,
+    alamat email, dan foto profil dari akun Google Anda. Jika Anda mendaftar dengan
+    email/kata sandi, kami menyimpan alamat email Anda (kata sandi dikelola dan dienkripsi
+    oleh penyedia autentikasi kami, Supabase — kami tidak pernah melihat atau menyimpan kata
+    sandi Anda dalam bentuk teks biasa).</p>
+
+    <p><strong>Data transaksi yang Anda masukkan.</strong> Jumlah, kategori, catatan, tanggal,
+    dan jenis (pemasukan/pengeluaran) dari setiap transaksi yang Anda catat — baik yang
+    diketik manual maupun yang dikonfirmasi dari struk.</p>
+
+    <p><strong>Teks hasil pindai struk (OCR).</strong> Saat Anda membagikan tangkapan layar
+    struk transfer/pembayaran (Mandiri, GoPay, atau Grab) ke Dompetcho, teks pada gambar
+    tersebut dibaca langsung di perangkat Anda menggunakan ML Kit dari Google (on-device,
+    tanpa dikirim ke server pihak ketiga mana pun untuk diproses). Hanya teks hasil pindai
+    dan nilai yang berhasil diekstrak (nominal, tanggal, penerima, nomor referensi) yang
+    dikirim ke server kami untuk disimpan sebagai riwayat struk Anda. <strong>Gambar struk
+    itu sendiri tidak pernah diunggah ke server kami</strong> — gambar tetap tersimpan secara
+    lokal di perangkat Anda.</p>
+
+    <p><strong>Akun sumber dana (opsional).</strong> Jika Anda menambahkan "akun" (bank,
+    e-wallet, atau tunai) untuk menandai sumber dana sebuah transaksi, nama dan jenis akun
+    tersebut tersimpan di server kami.</p>
+  </div>
+
+  <h2>Bagaimana data digunakan</h2>
+  <p>Data Anda digunakan semata-mata untuk menjalankan fungsi inti aplikasi: menampilkan
+  kembali riwayat transaksi, ringkasan bulanan, dan saldo Anda — kepada Anda sendiri. Kami
+  tidak menggunakan data Anda untuk iklan, tidak membuat profil perilaku, dan tidak membagikan
+  atau menjual data Anda kepada pihak ketiga mana pun untuk tujuan pemasaran.</p>
+
+  <h2>Di mana data disimpan</h2>
+  <p>Data akun dan transaksi Anda disimpan di <a href="https://supabase.com" target="_blank" rel="noopener">Supabase</a>,
+  penyedia basis data terkelola yang kami gunakan sebagai backend. Setiap baris data dilindungi
+  oleh kebijakan Row-Level Security sehingga hanya Anda — melalui sesi akun Anda sendiri yang
+  sudah terautentikasi — yang dapat membaca atau mengubah data Anda. Tidak ada pengguna lain,
+  termasuk pengguna Dompetcho lainnya, yang dapat mengakses data Anda.</p>
+
+  <h2>Pihak ketiga yang terlibat</h2>
+  <ul>
+    <li><strong>Google Sign-In</strong> — untuk autentikasi, jika Anda memilih masuk dengan
+    akun Google.</li>
+    <li><strong>Google ML Kit</strong> — untuk pembacaan teks pada struk, sepenuhnya di
+    perangkat Anda (on-device), tidak mengirim gambar ke server Google.</li>
+    <li><strong>Supabase</strong> — sebagai penyedia basis data dan autentikasi backend kami.</li>
+  </ul>
+  <p>Kami tidak menggunakan layanan analitik pihak ketiga maupun jaringan iklan di dalam
+  aplikasi.</p>
+
+  <h2>Keamanan</h2>
+  <p>Koneksi antara aplikasi dan server kami terenkripsi (HTTPS/TLS). Akses ke data Anda
+  dibatasi oleh autentikasi akun dan kebijakan Row-Level Security di tingkat basis data.</p>
+
+  <h2>Hak Anda: akses, koreksi, dan penghapusan data</h2>
+  <p>Anda dapat mengedit atau menghapus transaksi individual kapan saja langsung di dalam
+  aplikasi. Untuk meminta penghapusan seluruh akun dan data Anda, silakan hubungi kami melalui
+  email di bawah — permintaan akan diproses dalam waktu wajar.</p>
+
+  <h2>Anak-anak</h2>
+  <p>Dompetcho tidak ditujukan untuk anak-anak di bawah 13 tahun, dan kami tidak secara sadar
+  mengumpulkan data dari anak-anak di bawah usia tersebut.</p>
+
+  <h2>Perubahan pada kebijakan ini</h2>
+  <p>Jika kebijakan ini berubah, tanggal "Berlaku mulai" di bagian atas halaman ini akan
+  diperbarui. Perubahan signifikan akan diinformasikan di dalam aplikasi.</p>
+
+  <h2>Hubungi kami</h2>
+  <p>Pertanyaan tentang privasi atau permintaan penghapusan data dapat dikirim ke:
+  <br /><strong><span class="placeholder">[ISI EMAIL DUKUNGAN ANDA]</span></strong></p>
+</div>
+</body>
+</html>
