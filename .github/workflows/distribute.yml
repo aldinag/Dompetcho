@@ -9,10 +9,14 @@ name: Distribute
 # `main` → the `prod-testers` group (release builds — merging dev into main is the actual
 #   release act; see ROADMAP.md's "Branching & release flow" section)
 #
-# Both currently share the same signing key (the checked-in debug keystore — see
-# android/app/build.gradle), the same applicationId, and the same Supabase backend. That's
-# a deliberate MVP-stage simplification, not an oversight — see README.md's "CI/CD:
-# Firebase App Distribution" section for the tradeoff and how to change it later.
+# Both share the same applicationId and the same Supabase backend (a deliberate MVP-stage
+# simplification — see README.md for the tradeoff). They also now share the same real
+# release signing key (see android/app/build.gradle) instead of the debug keystore —
+# required for a Play Store submission to even be possible, and good practice regardless
+# since a "release" build should never ship signed with the debug key. One consequence:
+# anyone with an existing install built before this change will need to uninstall it once
+# before installing a build from after this change — Android refuses an update whose
+# signature doesn't match the installed app's.
 on:
   push:
     branches: [dev, main]
@@ -54,7 +58,25 @@ jobs:
           fi
           echo "${{ secrets.DOMPETCHO_ENV_TS }}" > src/config/env.ts
 
+      # Decodes the release keystore from a secret into a file CI-only, never committed —
+      # same pattern as DOMPETCHO_ENV_TS above. Fails loudly (rather than silently falling
+      # back to the debug keystore, which android/app/build.gradle's signingConfigs block
+      # would otherwise do) since a debug-signed build here would be a broken release that
+      # looks like it succeeded.
+      - name: Write release keystore from secret
+        run: |
+          if [ -z "${{ secrets.DOMPETCHO_RELEASE_KEYSTORE_BASE64 }}" ]; then
+            echo "::error::DOMPETCHO_RELEASE_KEYSTORE_BASE64 secret is not set — see README's release-signing section."
+            exit 1
+          fi
+          echo "${{ secrets.DOMPETCHO_RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          echo "DOMPETCHO_RELEASE_STORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
       - name: Build release APK
+        env:
+          DOMPETCHO_RELEASE_STORE_PASSWORD: ${{ secrets.DOMPETCHO_RELEASE_STORE_PASSWORD }}
+          DOMPETCHO_RELEASE_KEY_ALIAS: ${{ secrets.DOMPETCHO_RELEASE_KEY_ALIAS }}
+          DOMPETCHO_RELEASE_KEY_PASSWORD: ${{ secrets.DOMPETCHO_RELEASE_KEY_PASSWORD }}
         run: cd android && ./gradlew assembleRelease
 
       # A merge commit's message is multi-line ("Merge pull request #N from ...\n\n<PR
