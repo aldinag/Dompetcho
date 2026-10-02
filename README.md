@@ -216,20 +216,54 @@ before it'll run successfully:
 | `DOMPETCHO_ENV_TS` | The full contents of your local `src/config/env.ts`, pasted as-is. Unlike CI's typecheck-only placeholder, a build real testers install needs real Supabase/Google config to actually work. |
 | `FIREBASE_ANDROID_APP_ID` | From the Firebase console: add an Android app (package `com.dompetcho`) to a Firebase project, then copy its App ID (looks like `1:1234567890:android:abcdef`). |
 | `FIREBASE_SERVICE_ACCOUNT` | A service account JSON key with the "Firebase App Distribution Admin" role. Google Cloud Console > IAM > Service Accounts (on the same project as your Firebase project) > create one > grant that role > Keys > Add key > JSON. Paste the whole file content. |
+| `DOMPETCHO_RELEASE_KEYSTORE_BASE64` | Your release keystore file, base64-encoded (`base64 -i release.keystore \| pbcopy` on macOS). See "Release signing" below — generate this once, keep the raw file out of git entirely. |
+| `DOMPETCHO_RELEASE_STORE_PASSWORD` | The keystore's store password. |
+| `DOMPETCHO_RELEASE_KEY_ALIAS` | The key alias inside the keystore (e.g. `dompetcho-release`). |
+| `DOMPETCHO_RELEASE_KEY_PASSWORD` | The key's password (same as the store password for a PKCS12 keystore — `keytool -genkeypair` ignores a different `-keypass` for that format). |
 
 You'll also need to create two **Tester Groups** named `dev-testers` and `prod-testers` in
 the Firebase console (App Distribution > Testers & Groups) — add yourself (and anyone else)
 to whichever group(s) you want builds to reach. Rename the groups in `distribute.yml` if you
 call them something else.
 
+### Release signing
+
+`android/app/build.gradle`'s `release` build type signs with a real keystore read from the
+`DOMPETCHO_RELEASE_*` env vars above — never with the debug keystore, which Google Play
+rejects outright and which also isn't appropriate for anything calling itself a release
+build. Generate one once, keep the raw `.keystore` file **out of git entirely** (it isn't,
+and must never be, tracked):
+
+```bash
+keytool -genkeypair -v -storetype PKCS12 \
+  -keystore release.keystore -alias dompetcho-release \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Then base64-encode it into the `DOMPETCHO_RELEASE_KEYSTORE_BASE64` secret above
+(`base64 -i release.keystore | pbcopy` on macOS), and set the three password/alias secrets
+to match what you entered.
+
+**Back this file and its passwords up somewhere durable (a password manager, not just this
+machine) before doing anything else with it.** If you lose it, you lose the ability to ever
+ship another update to an app already published under it — Google Play ties an app's
+identity to the key it was first signed with, and there's no recovery path short of
+[Play App Signing's key-upgrade process](https://support.google.com/googleplay/android-developer/answer/9842756)
+for apps enrolled in it.
+
+**After generating a new key, re-register its SHA-1 for Google Sign-In** — the Android OAuth
+client in Google Cloud Console is tied to specific certificate fingerprints, so Google
+Sign-In will fail on a release build signed with a key whose SHA-1 isn't registered:
+`keytool -list -v -keystore release.keystore -alias dompetcho-release` and add the `SHA1`
+value under **APIs & Services > Credentials** > the Android OAuth client for `com.dompetcho`.
+
+Switching the signing key also means anyone with an install built before the switch needs to
+**uninstall it once** before installing a build from after — Android refuses an update whose
+signature doesn't match what's already installed.
+
 **Deliberate MVP-stage simplifications** — none of these are required to get this working,
 but worth knowing about:
 
-- **Same signing key for dev and prod.** Both are signed with the checked-in debug keystore
-  (see `android/app/build.gradle`) — the same one already used for local development and
-  Google Sign-In. Before ever submitting to the Play Store (a very different distribution
-  channel from Firebase App Distribution's internal testing), you'd need a real release
-  keystore, kept out of git, with its own SHA-1 registered for Google Sign-In.
 - **Same `applicationId` for dev and prod** (`com.dompetcho`). A dev build installs *over*
   a prod build on the same device rather than living alongside it. Giving dev builds a
   separate id (e.g. via an `applicationIdSuffix` in a Gradle product flavor) would let
