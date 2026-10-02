@@ -16,6 +16,7 @@ import { RootStackParamList } from '../navigation/types';
 import { useAuthStore } from '../store/useAuthStore';
 import { useExpenseStore } from '../store/useExpenseStore';
 import { Expense } from '../types';
+import { calculateBalance } from '../utils/balance';
 import { currentMonthRange, greeting } from '../utils/dateRange';
 import { formatDayHeader, formatRupiah } from '../utils/format';
 import { localDayKey } from '../utils/timestamp';
@@ -74,6 +75,8 @@ export function HomeScreen() {
 
   const sections = useMemo(() => groupByDay(expenses), [expenses]);
 
+  const balance = useMemo(() => calculateBalance(expenses), [expenses]);
+
   const monthSummary = useMemo(() => {
     const { start, end } = currentMonthRange();
     let incomeTotal = 0;
@@ -85,7 +88,7 @@ export function HomeScreen() {
       if (e.type === 'income') incomeTotal += amount;
       else expenseTotal += amount;
     }
-    return { incomeTotal, expenseTotal, balance: incomeTotal - expenseTotal };
+    return { incomeTotal, expenseTotal };
   }, [expenses]);
 
   return (
@@ -117,7 +120,7 @@ export function HomeScreen() {
 
       <View style={[styles.balanceCard, floatingCardShadow, { backgroundColor: theme.primaryDark }]}>
         <Text style={styles.balanceLabel}>Sisa Saldo</Text>
-        <Text style={[styles.balanceAmount, tabularNums]}>{formatRupiah(monthSummary.balance)}</Text>
+        <Text style={[styles.balanceAmount, tabularNums]}>{formatRupiah(balance)}</Text>
 
         <View style={styles.divider} />
 
@@ -126,7 +129,7 @@ export function HomeScreen() {
             <View style={styles.splitIconBadge}>
               <Icon name="arrow-up" size={16} color="#FFFFFF" />
             </View>
-            <View>
+            <View style={styles.splitTextGroup}>
               <Text style={styles.splitLabel}>Pemasukan Bulan Ini</Text>
               <Text style={[styles.splitAmount, tabularNums]}>{formatRupiah(monthSummary.incomeTotal)}</Text>
             </View>
@@ -136,7 +139,7 @@ export function HomeScreen() {
             <View style={styles.splitIconBadge}>
               <Icon name="arrow-down" size={16} color="#FFFFFF" />
             </View>
-            <View>
+            <View style={styles.splitTextGroup}>
               <Text style={styles.splitLabel}>Pengeluaran Bulan Ini</Text>
               <Text style={[styles.splitAmount, tabularNums]}>{formatRupiah(monthSummary.expenseTotal)}</Text>
             </View>
@@ -252,6 +255,13 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  // Without an explicit shrink, this View (and the Text inside it) defaults to its
+  // content's natural width and can overflow past the card edge instead of wrapping —
+  // this constrains it to whatever room splitItem actually has left after the icon badge.
+  splitTextGroup: {
+    flex: 1,
+    flexShrink: 1,
   },
   splitIconBadge: {
     width: 32,

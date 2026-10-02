@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { Alert, RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { CategoryDonutChart } from '../components/CategoryDonutChart';
 import { Icon } from '../components/Icon';
 import { categoryLabel } from '../constants/categoryLabels';
 import { categoryColor, categoryTint } from '../constants/categoryColors';
@@ -92,6 +93,9 @@ export function SummaryScreen() {
 
   const sections = useMemo(() => groupByMonth(expenses), [expenses]);
   const overallTotal = useMemo(() => sections.reduce((sum, s) => sum + s.total, 0), [sections]);
+  // Most recent month that actually has expenses — `groupByMonth` preserves the order
+  // expenses arrive in, which `listExpenses` already sorts newest-first.
+  const latestSection = sections[0];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -101,6 +105,34 @@ export function SummaryScreen() {
         <Text style={[styles.total, tabularNums, { color: theme.text }]}>{formatRupiah(overallTotal)}</Text>
         <Text style={[styles.totalLabel, { color: theme.textMuted }]}>Total pengeluaran</Text>
       </View>
+
+      {latestSection ? (
+        <View style={[styles.chartCard, cardShadow, { backgroundColor: theme.surface }]}>
+          <Text style={[styles.chartHeading, { color: theme.text }]}>Kategori · {latestSection.title}</Text>
+          <View style={styles.chartRow}>
+            <CategoryDonutChart
+              data={latestSection.data}
+              total={latestSection.total}
+              trackColor={theme.border}
+              centerLabelColor={theme.textMuted}
+              centerValueColor={theme.text}
+            />
+            <View style={styles.legend}>
+              {latestSection.data.map(item => (
+                <View key={item.categoryId} style={styles.legendRow}>
+                  <View style={[styles.legendDot, { backgroundColor: categoryColor(item.categoryName) }]} />
+                  <Text style={[styles.legendLabel, { color: theme.text }]} numberOfLines={1}>
+                    {categoryLabel(item.categoryName)}
+                  </Text>
+                  <Text style={[styles.legendPercent, tabularNums, { color: theme.textMuted }]}>
+                    {latestSection.total > 0 ? Math.round((item.amount / latestSection.total) * 100) : 0}%
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+      ) : null}
 
       <SectionList
         sections={sections}
@@ -151,6 +183,34 @@ const styles = StyleSheet.create({
   },
   total: { ...typography.display },
   totalLabel: { ...typography.caption, marginTop: spacing['2xs'] },
+  chartCard: {
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  chartHeading: { ...typography.h2, fontSize: 14, marginBottom: spacing.sm },
+  chartRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  legend: {
+    flex: 1,
+    marginLeft: spacing.md,
+    gap: spacing['2xs'],
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: spacing['2xs'],
+  },
+  legendLabel: { ...typography.caption, flex: 1, flexShrink: 1 },
+  legendPercent: { ...typography.caption, fontWeight: '600', marginLeft: spacing['2xs'] },
   listContent: { paddingBottom: spacing.lg },
   sectionHeader: {
     flexDirection: 'row',
