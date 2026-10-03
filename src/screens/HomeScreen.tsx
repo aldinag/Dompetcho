@@ -1,7 +1,17 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useEffect, useMemo } from 'react';
-import { Alert, Image, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  RefreshControl,
+  SectionList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../components/EmptyState';
 import { ExpenseListItem } from '../components/ExpenseListItem';
@@ -16,8 +26,7 @@ import { RootStackParamList } from '../navigation/types';
 import { useAuthStore } from '../store/useAuthStore';
 import { useExpenseStore } from '../store/useExpenseStore';
 import { Expense } from '../types';
-import { calculateBalance } from '../utils/balance';
-import { currentMonthRange, greeting } from '../utils/dateRange';
+import { greeting } from '../utils/dateRange';
 import { formatDayHeader, formatRupiah } from '../utils/format';
 import { localDayKey } from '../utils/timestamp';
 
@@ -57,9 +66,15 @@ export function HomeScreen() {
   const navigation = useNavigation<Nav>();
   const user = useAuthStore(state => state.user);
   const expenses = useExpenseStore(state => state.expenses);
+  const hasMoreExpenses = useExpenseStore(state => state.hasMoreExpenses);
+  const loadingMoreExpenses = useExpenseStore(state => state.loadingMoreExpenses);
+  const balance = useExpenseStore(state => state.balance);
+  const monthIncome = useExpenseStore(state => state.monthIncome);
+  const monthExpense = useExpenseStore(state => state.monthExpense);
   const refreshing = useExpenseStore(state => state.refreshing);
   const loadInitial = useExpenseStore(state => state.loadInitial);
   const refresh = useExpenseStore(state => state.refresh);
+  const loadMoreExpenses = useExpenseStore(state => state.loadMoreExpenses);
 
   useEffect(() => {
     loadInitial().catch((error: any) => {
@@ -73,23 +88,13 @@ export function HomeScreen() {
     });
   }, [refresh]);
 
+  const handleLoadMore = useCallback(() => {
+    loadMoreExpenses().catch((error: any) => {
+      Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
+    });
+  }, [loadMoreExpenses]);
+
   const sections = useMemo(() => groupByDay(expenses), [expenses]);
-
-  const balance = useMemo(() => calculateBalance(expenses), [expenses]);
-
-  const monthSummary = useMemo(() => {
-    const { start, end } = currentMonthRange();
-    let incomeTotal = 0;
-    let expenseTotal = 0;
-    for (const e of expenses) {
-      const at = new Date(e.date).getTime();
-      if (at < start || at >= end) continue;
-      const amount = Number(e.amount);
-      if (e.type === 'income') incomeTotal += amount;
-      else expenseTotal += amount;
-    }
-    return { incomeTotal, expenseTotal };
-  }, [expenses]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -131,7 +136,7 @@ export function HomeScreen() {
             </View>
             <View style={styles.splitTextGroup}>
               <Text style={styles.splitLabel}>Pemasukan Bulan Ini</Text>
-              <Text style={[styles.splitAmount, tabularNums]}>{formatRupiah(monthSummary.incomeTotal)}</Text>
+              <Text style={[styles.splitAmount, tabularNums]}>{formatRupiah(monthIncome)}</Text>
             </View>
           </View>
           <View style={styles.splitDivider} />
@@ -141,7 +146,7 @@ export function HomeScreen() {
             </View>
             <View style={styles.splitTextGroup}>
               <Text style={styles.splitLabel}>Pengeluaran Bulan Ini</Text>
-              <Text style={[styles.splitAmount, tabularNums]}>{formatRupiah(monthSummary.expenseTotal)}</Text>
+              <Text style={[styles.splitAmount, tabularNums]}>{formatRupiah(monthExpense)}</Text>
             </View>
           </View>
         </View>
@@ -169,6 +174,25 @@ export function HomeScreen() {
         )}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.primary} />}
         ListEmptyComponent={<EmptyState />}
+        ListFooterComponent={
+          hasMoreExpenses ? (
+            <TouchableOpacity
+              style={[styles.loadMoreButton, { borderColor: theme.border }]}
+              onPress={handleLoadMore}
+              disabled={loadingMoreExpenses}
+              accessibilityRole="button"
+              accessibilityLabel="Muat transaksi lebih lama"
+            >
+              {loadingMoreExpenses ? (
+                <ActivityIndicator color={theme.primary} />
+              ) : (
+                <Text style={[styles.loadMoreText, { color: theme.primary }]}>Muat Lebih Banyak</Text>
+              )}
+            </TouchableOpacity>
+          ) : undefined
+        }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
         contentContainerStyle={sections.length === 0 && styles.emptyContent}
         stickySectionHeadersEnabled
       />
@@ -311,5 +335,17 @@ const styles = StyleSheet.create({
   },
   emptyContent: {
     flexGrow: 1,
+  },
+  loadMoreButton: {
+    marginHorizontal: spacing.md,
+    marginVertical: spacing.md,
+    minHeight: 44,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadMoreText: {
+    fontWeight: '600',
   },
 });

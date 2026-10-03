@@ -131,7 +131,7 @@ being added to this file by a human:
       there's no remaining import anywhere, then remove it from `package.json` and run
       `npm install` to update the lockfile.
 
-- [ ] **Add pagination to `listExpenses`.** It currently fetches every expense with no
+- [x] **Add pagination to `listExpenses`.** It currently fetches every expense with no
       limit. Fine at MVP1 scale, but add a reasonable page size + "load more" (or
       infinite-scroll) on Home before it becomes a real problem for long-time users. Keep
       Summary's month-grouping working correctly against a paginated fetch (it may need its
