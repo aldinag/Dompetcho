@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { Expense, ExpenseSource, TransactionType } from '../types';
+import { calculateBalance } from '../utils/balance';
 
 export interface CreateExpenseInput {
   userId: string;
@@ -12,14 +13,58 @@ export interface CreateExpenseInput {
   type: TransactionType;
 }
 
-export async function listExpenses(): Promise<Expense[]> {
-  const { data, error } = await supabase
+export interface ListExpensesOptions {
+  limit?: number;
+  offset?: number;
+}
+
+// With no options, fetches every row — Summary's all-time, all-category month grouping
+// still needs that. Home's recent-transactions list passes `limit` (and a growing `offset`
+// for "load more") so it doesn't pull the whole table on every load.
+export async function listExpenses(options: ListExpensesOptions = {}): Promise<Expense[]> {
+  let query = supabase
     .from('expenses')
     .select('*, category:categories(*)')
     .order('date', { ascending: false })
     .order('created_at', { ascending: false });
+  if (options.limit !== undefined) {
+    const offset = options.offset ?? 0;
+    query = query.range(offset, offset + options.limit - 1);
+  }
+  const { data, error } = await query;
   if (error) throw error;
   return data ?? [];
+}
+
+export interface ExpenseTotals {
+  balance: number;
+  monthIncome: number;
+  monthExpense: number;
+}
+
+// Home's "Sisa Saldo" needs the all-time sum, which can't come from a bounded page — so this
+// still scans every row, but only the two columns the sum actually needs (no category join),
+// which is far lighter than the listing above. A server-side aggregate (a Postgres RPC) would
+// avoid the scan entirely; left as a follow-up rather than folded into this change.
+export async function getExpenseTotals(monthStart: string, monthEnd: string): Promise<ExpenseTotals> {
+  const [allTime, thisMonth] = await Promise.all([
+    supabase.from('expenses').select('amount, type'),
+    supabase.from('expenses').select('amount, type').gte('date', monthStart).lt('date', monthEnd),
+  ]);
+  if (allTime.error) throw allTime.error;
+  if (thisMonth.error) throw thisMonth.error;
+
+  const balance = calculateBalance(allTime.data ?? []);
+
+  let monthIncome = 0;
+  let monthExpense = 0;
+  for (const e of thisMonth.data ?? []) {
+    const amount = Number(e.amount);
+    if (e.type === 'income') monthIncome += amount;
+    else monthExpense += amount;
+  }
+
+  return { balance, monthIncome, monthExpense };
 }
 
 export async function createExpense(input: CreateExpenseInput): Promise<Expense> {
