@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CategoryDonutChart } from '../components/CategoryDonutChart';
@@ -12,7 +12,7 @@ import { spacing } from '../constants/spacing';
 import { tabularNums, typography } from '../constants/typography';
 import { useStatusBarStyle } from '../hooks/useStatusBarStyle';
 import { useTheme } from '../hooks/useTheme';
-import { useExpenseStore } from '../store/useExpenseStore';
+import { listExpenses } from '../services/expenseService';
 import { Expense } from '../types';
 import { formatRupiah } from '../utils/format';
 import { localMonthKey } from '../utils/timestamp';
@@ -74,22 +74,27 @@ function groupByMonth(expenses: Expense[]): MonthSection[] {
 export function SummaryScreen() {
   const theme = useTheme();
   useStatusBarStyle('default');
-  const expenses = useExpenseStore(state => state.expenses);
-  const refreshing = useExpenseStore(state => state.refreshing);
-  const loadInitial = useExpenseStore(state => state.loadInitial);
-  const refresh = useExpenseStore(state => state.refresh);
+  // Unlike Home's "Transaksi Terakhir" (now paginated — see ROADMAP's "Add pagination to
+  // listExpenses"), the month/category breakdown below needs every expense ever recorded, so
+  // it keeps its own unpaginated fetch here rather than sharing Home's bounded store state.
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    loadInitial().catch((error: any) => {
+    listExpenses().then(setExpenses).catch((error: any) => {
       Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
     });
-  }, [loadInitial]);
+  }, []);
 
   const handleRefresh = useCallback(() => {
-    refresh().catch((error: any) => {
-      Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
-    });
-  }, [refresh]);
+    setRefreshing(true);
+    listExpenses()
+      .then(setExpenses)
+      .catch((error: any) => {
+        Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
+      })
+      .finally(() => setRefreshing(false));
+  }, []);
 
   const sections = useMemo(() => groupByMonth(expenses), [expenses]);
   const overallTotal = useMemo(() => sections.reduce((sum, s) => sum + s.total, 0), [sections]);
