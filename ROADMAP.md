@@ -126,7 +126,7 @@ being added to this file by a human:
       currently renders like `Rp -50.000`. Indonesian convention is `-Rp 50.000`. Fix in
       `src/utils/format.ts` and add a test case.
 
-- [ ] **Remove the unused `react-native-chart-kit` dependency.** It was used for
+- [x] **Remove the unused `react-native-chart-kit` dependency.** It was used for
       `SummaryScreen`'s pie chart, which was replaced by the month-grouped list. Confirm
       there's no remaining import anywhere, then remove it from `package.json` and run
       `npm install` to update the lockfile.

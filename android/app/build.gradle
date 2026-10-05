@@ -85,6 +85,17 @@ android {
         versionCode 1
         versionName "1.0"
     }
+    // Release signing comes from env vars (DOMPETCHO_RELEASE_*), never committed — same
+    // pattern as DOMPETCHO_ENV_TS for src/config/env.ts. CI (distribute.yml) sets these from
+    // GitHub Secrets; a local dev building `assembleRelease`/`bundleRelease` without them set
+    // falls back to the debug keystore with a loud warning. A build signed with the debug
+    // keystore must never be uploaded anywhere real (Play Store, Firebase prod-testers, etc.).
+    def releaseStoreFile = System.getenv("DOMPETCHO_RELEASE_STORE_FILE")
+    def releaseStorePassword = System.getenv("DOMPETCHO_RELEASE_STORE_PASSWORD")
+    def releaseKeyAlias = System.getenv("DOMPETCHO_RELEASE_KEY_ALIAS")
+    def releaseKeyPassword = System.getenv("DOMPETCHO_RELEASE_KEY_PASSWORD")
+    def hasReleaseSigningConfig = releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -92,15 +103,31 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (hasReleaseSigningConfig) {
+            release {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            if (hasReleaseSigningConfig) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn(
+                    "WARNING: DOMPETCHO_RELEASE_STORE_FILE/STORE_PASSWORD/KEY_ALIAS/KEY_PASSWORD " +
+                    "are not all set — this release build is falling back to the debug keystore. " +
+                    "Fine for local testing; never upload a build signed this way to Google Play " +
+                    "or ship it as a real release."
+                )
+                signingConfig signingConfigs.debug
+            }
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
