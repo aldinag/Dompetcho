@@ -31,8 +31,21 @@ being added to this file by a human:
   other PR. Nothing here automates that step, on purpose.
 - Both branches are protected: the CI status check must pass before merging, no
   force-pushes, no deletions.
+- **Firebase App Distribution is the only release channel automation may touch.** A merge to
+  `dev` ships to `dev-testers` and nothing else — never to Google Play (any track, including
+  Internal testing), and never to any other store or external distribution service. The same
+  holds for `main` → `prod-testers`. Publishing to the Play Store is a manual, human-only act
+  done from the Play Console; see the ground rule below.
 
 ## Ground rules for automated work
+
+- **Never add Play Store / app-store publishing to automation.** Don't add a workflow, job,
+  step, Fastlane lane, or script that uploads to Google Play or the App Store (or that holds
+  a Play Developer API service account), and don't make any workflow triggered by a push to
+  `dev` produce a store-bound artifact other than the existing Firebase APK. Building an AAB
+  locally by hand is fine; shipping one anywhere is a human decision. If a roadmap item seems
+  to need this, stop and say so in the PR/report instead of doing it. Likewise, never touch
+  how the release-signing secrets are read or stored (`DOMPETCHO_RELEASE_*`).
 
 - **First, before picking a new item: re-check every other open PR for conflicts.** Run
   `gh pr list --state open --json number,headRefName,mergeable`. A merge to `dev` (including
@@ -120,6 +133,62 @@ being added to this file by a human:
       to `BankDetected` and the schema check constraint. No real sample exists yet; ship a
       best-effort first pass and ask for a real screenshot to tune against.
 
+## Store-readiness (app-side only)
+
+Things Google Play requires of the app itself before a human can submit it. None of these
+publish anything — see "Firebase App Distribution is the only release channel automation may
+touch" above.
+
+- [ ] **In-app account deletion.** Play requires any app that lets users create an account to
+      also let them delete it from inside the app. Add a "Hapus Akun" row to `ProfileScreen`
+      (below "Keluar", styled as destructive via `theme.danger`) with a two-step confirmation
+      `Alert` that spells out that every expense, account tag, and receipt scan is permanently
+      deleted. The client can't delete its own `auth.users` row, so add a
+      `public.delete_my_account()` `security definer` function to `supabase/schema.sql` (it
+      deletes `auth.uid()`'s row from `auth.users`; confirm the existing `on delete cascade`
+      FKs from `users`/`expenses`/`accounts`/`receipt_scans` actually clear everything, and fix
+      any that don't) and call it via `supabase.rpc`. On success sign out and clear the local
+      stores. This is a schema change — flag the manual SQL step clearly in the PR (see ground
+      rules). Don't just delete the `users` profile row; a leftover auth user would still be
+      able to sign in.
+
+- [ ] **Link the privacy policy from inside the app.** Play expects the policy to be reachable
+      in-app, not only on the store listing. Add a "Kebijakan Privasi" row to `ProfileScreen`
+      (next to the existing "Tentang Dompetcho" block) and a small tappable "Kebijakan
+      Privasi" line under the sign-in buttons on `LoginScreen`, both opening
+      `https://aldinag.github.io/Dompetcho/` with `Linking.openURL`. Put the URL in one
+      constant (e.g. `src/constants/links.ts`). No new dependency, and don't change the
+      published policy page itself (it lives on the `gh-pages` branch, separate from app code).
+
+- [ ] **Show the real app version on Profile.** `ProfileScreen` hardcodes "Versi 1.0 (MVP1)".
+      Replace it with a single source-of-truth constant (e.g. `src/config/appInfo.ts`) and add
+      a Jest test that reads `android/app/build.gradle` and fails if its `versionName` ever
+      drifts from that constant, so the two can't silently disagree. No new native
+      dependency (don't pull in `react-native-device-info` for this).
+
+## More features
+
+- [ ] **Let Summary's chart cover any month, not just the latest.** `SummaryScreen`'s donut
+      chart and legend always show the most recent month that has expenses. Add a compact
+      month selector above the chart (previous/next chevrons using existing `Icon`s, label
+      like "September 2026", disabled at the first/last month that has data) that drives the
+      chart + legend. Default stays "latest month". The month-grouped list below is unchanged.
+
+- [ ] **Break Summary down by source account, not just category.** Now that expenses can be
+      tagged with an account (see "Tag each expense with a source account"), add a
+      "Kategori | Akun" segmented toggle above `SummaryScreen`'s chart that re-slices the same
+      month's expenses by `account_id` (untagged ones grouped as "Tanpa Akun", using a neutral
+      color distinct from the category palette). This is still just a breakdown — no
+      per-account balance, no effect on Home's Sisa Saldo (see non-goals).
+
+- [ ] **Search and filter the expense list.** Add a search field on Home that filters by note
+      text, plus a category filter. Because Home is paginated, this must be a server-side
+      filter (`ilike` on `note`, `eq` on `category_id` via `listExpenses`'s options), not a
+      client-side filter over the loaded page — otherwise results silently miss older rows.
+      Debounce the input, show a distinct "no results" state (not the first-run `EmptyState`),
+      and keep the balance/month cards unaffected by the filter. Likely bigger than a typical
+      item — fine to split the search and the category filter into two PRs; note the split.
+
 ## Maintenance / hardening
 
 - [x] **Fix negative "Sisa Saldo" formatting.** `formatRupiah` on a negative number
@@ -143,7 +212,24 @@ being added to this file by a human:
       Distribution) — so native build breakage now surfaces immediately rather than needing
       a separate job. This still doesn't replace testing on a real device.
 
-- [ ] **Fix the local `assembleDebug` + Metro dev loop: crashes with `PlatformConstants`
+- [ ] **Move the totals and Summary breakdown to server-side aggregates.** `getExpenseTotals`
+      still pulls every row's `amount, type` to sum client-side, and `SummaryScreen` still
+      pulls every expense (with its category join) to group by month/category — both stay
+      O(history) for the life of an account. Add Postgres RPC functions to
+      `supabase/schema.sql` (e.g. `expense_totals(month_start, month_end)` and
+      `expense_breakdown_by_month()` returning month × category sums, both `security invoker`
+      so RLS still scopes to the caller) and switch the two call sites over. Schema change —
+      flag the manual SQL step in the PR. Keep the existing unit tests' intent (balance,
+      month totals, per-month sums) passing against the new shape.
+
+- [ ] **Extract and test the grouping helpers.** `groupByDay` (HomeScreen) and `groupByMonth`
+      (SummaryScreen) hold real logic — local-time day/month keys, income vs expense signs,
+      category roll-ups — but live inside screen files with no tests. Move them to
+      `src/utils/` (e.g. `groupExpenses.ts`) and cover the edge cases: a late-night expense
+      near midnight in a non-UTC timezone, uncategorized expenses, income excluded from the
+      spend breakdown, and ordering. Behavior must not change.
+
+- [ ] **[needs a human with a native debugger — agent: skip this item]** Fix the local `assembleDebug` + Metro dev loop: crashes with `PlatformConstants`
       could not be found.** On this project's dev machine (Android emulator, API level of
       "Pixel_10" AVD), launching a debug build connected to Metro crashes immediately with:
       ```

@@ -1,5 +1,9 @@
 name: Distribute
 
+# Firebase App Distribution ONLY. A push to `dev` (or `main`) must never publish to Google
+# Play or any other store — store submission is a manual, human-only act in the Play Console.
+# Don't add a Play upload step/action here or in any workflow triggered by these branches.
+
 # Builds a release APK and pushes it to Firebase App Distribution whenever a PR lands on
 # `dev` or `main`. By the time a commit reaches either branch it has already passed CI
 # (branch protection requires the "Typecheck, lint, test" check before merge), so this
