@@ -139,7 +139,7 @@ Things Google Play requires of the app itself before a human can submit it. None
 publish anything — see "Firebase App Distribution is the only release channel automation may
 touch" above.
 
-- [ ] **In-app account deletion.** Play requires any app that lets users create an account to
+- [x] **In-app account deletion.** Play requires any app that lets users create an account to
       also let them delete it from inside the app. Add a "Hapus Akun" row to `ProfileScreen`
       (below "Keluar", styled as destructive via `theme.danger`) with a two-step confirmation
       `Alert` that spells out that every expense, account tag, and receipt scan is permanently
