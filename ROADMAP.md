@@ -152,7 +152,7 @@ touch" above.
       rules). Don't just delete the `users` profile row; a leftover auth user would still be
       able to sign in.
 
-- [ ] **Link the privacy policy from inside the app.** Play expects the policy to be reachable
+- [x] **Link the privacy policy from inside the app.** Play expects the policy to be reachable
       in-app, not only on the store listing. Add a "Kebijakan Privasi" row to `ProfileScreen`
       (next to the existing "Tentang Dompetcho" block) and a small tappable "Kebijakan
       Privasi" line under the sign-in buttons on `LoginScreen`, both opening
