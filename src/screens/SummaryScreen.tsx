@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
+import { Alert, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CategoryDonutChart } from '../components/CategoryDonutChart';
 import { Icon } from '../components/Icon';
@@ -98,9 +98,23 @@ export function SummaryScreen() {
 
   const sections = useMemo(() => groupByMonth(expenses), [expenses]);
   const overallTotal = useMemo(() => sections.reduce((sum, s) => sum + s.total, 0), [sections]);
-  // Most recent month that actually has expenses — `groupByMonth` preserves the order
-  // expenses arrive in, which `listExpenses` already sorts newest-first.
-  const latestSection = sections[0];
+
+  // Index into `sections`, which `groupByMonth` keeps in the newest-first order
+  // `listExpenses` already sorts by — so 0 is the latest month and it's the default.
+  const [chartMonthIndex, setChartMonthIndex] = useState(0);
+  const lastMonthIndex = Math.max(sections.length - 1, 0);
+  const selectedMonthIndex = Math.min(chartMonthIndex, lastMonthIndex);
+  const chartSection = sections[selectedMonthIndex];
+  const hasOlderMonth = selectedMonthIndex < lastMonthIndex;
+  const hasNewerMonth = selectedMonthIndex > 0;
+
+  const handleOlderMonth = useCallback(() => {
+    setChartMonthIndex(i => Math.min(i + 1, lastMonthIndex));
+  }, [lastMonthIndex]);
+
+  const handleNewerMonth = useCallback(() => {
+    setChartMonthIndex(i => Math.max(i - 1, 0));
+  }, []);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -111,26 +125,46 @@ export function SummaryScreen() {
         <Text style={[styles.totalLabel, { color: theme.textMuted }]}>Total pengeluaran</Text>
       </View>
 
-      {latestSection ? (
+      {chartSection ? (
         <View style={[styles.chartCard, cardShadow, { backgroundColor: theme.surface }]}>
-          <Text style={[styles.chartHeading, { color: theme.text }]}>Kategori · {latestSection.title}</Text>
+          <View style={styles.monthSelector}>
+            <TouchableOpacity
+              onPress={handleOlderMonth}
+              disabled={!hasOlderMonth}
+              accessibilityRole="button"
+              accessibilityLabel="Bulan sebelumnya"
+              hitSlop={8}
+            >
+              <Icon name="chevron-left" size={20} color={hasOlderMonth ? theme.text : theme.textDisabled} />
+            </TouchableOpacity>
+            <Text style={[styles.chartHeading, { color: theme.text }]}>Kategori · {chartSection.title}</Text>
+            <TouchableOpacity
+              onPress={handleNewerMonth}
+              disabled={!hasNewerMonth}
+              accessibilityRole="button"
+              accessibilityLabel="Bulan berikutnya"
+              hitSlop={8}
+            >
+              <Icon name="chevron-right" size={20} color={hasNewerMonth ? theme.text : theme.textDisabled} />
+            </TouchableOpacity>
+          </View>
           <View style={styles.chartRow}>
             <CategoryDonutChart
-              data={latestSection.data}
-              total={latestSection.total}
+              data={chartSection.data}
+              total={chartSection.total}
               trackColor={theme.border}
               centerLabelColor={theme.textMuted}
               centerValueColor={theme.text}
             />
             <View style={styles.legend}>
-              {latestSection.data.map(item => (
+              {chartSection.data.map(item => (
                 <View key={item.categoryId} style={styles.legendRow}>
                   <View style={[styles.legendDot, { backgroundColor: categoryColor(item.categoryName) }]} />
                   <Text style={[styles.legendLabel, { color: theme.text }]} numberOfLines={1}>
                     {categoryLabel(item.categoryName)}
                   </Text>
                   <Text style={[styles.legendPercent, tabularNums, { color: theme.textMuted }]}>
-                    {latestSection.total > 0 ? Math.round((item.amount / latestSection.total) * 100) : 0}%
+                    {chartSection.total > 0 ? Math.round((item.amount / chartSection.total) * 100) : 0}%
                   </Text>
                 </View>
               ))}
@@ -194,7 +228,13 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
     marginBottom: spacing.md,
   },
-  chartHeading: { ...typography.h2, fontSize: 14, marginBottom: spacing.sm },
+  monthSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  chartHeading: { ...typography.h2, fontSize: 14, marginHorizontal: spacing.sm },
   chartRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -8,6 +8,7 @@ export type IconName =
   | 'camera'
   | 'pencil'
   | 'chevron-right'
+  | 'chevron-left'
   | 'food'
   | 'transport'
   | 'shopping'
@@ -40,6 +41,7 @@ const PATHS: Record<IconName, string> = {
   pencil:
     'M15.5 4.5 19.5 8.5 8 20H4v-4L15.5 4.5Z',
   'chevron-right': 'M9 5l7 7-7 7',
+  'chevron-left': 'M15 5l-7 7 7 7',
   food: 'M6 3v7a2 2 0 0 0 4 0V3 M8 10v11 M17 3c-1.5 0-3 1.5-3 4s1.5 4 3 4v10',
   transport:
     'M4 16V11a1 1 0 0 1 .5-.87l2.6-1.5A2 2 0 0 1 8.1 8.4h7.8a2 2 0 0 1 1 .23l2.6 1.5A1 1 0 0 1 20 11v5H4Z M7 16v3 M17 16v3 M4 13h16',
