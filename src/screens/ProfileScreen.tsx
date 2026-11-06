@@ -4,6 +4,7 @@ import React from 'react';
 import { ActivityIndicator, Alert, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '../components/Icon';
+import { APP_VERSION } from '../config/appInfo';
 import { cardShadow } from '../constants/elevation';
 import { radius } from '../constants/radius';
 import { spacing } from '../constants/spacing';
@@ -97,7 +98,7 @@ export function ProfileScreen() {
         <View style={[styles.card, cardShadow, { backgroundColor: theme.surface }]}>
           <View style={styles.row}>
             <Text style={[styles.rowLabel, { color: theme.textMuted }]}>Tentang Dompetcho</Text>
-            <Text style={[styles.rowValue, { color: theme.text }]}>Versi 1.0 (MVP1)</Text>
+            <Text style={[styles.rowValue, { color: theme.text }]}>Versi {APP_VERSION} (MVP1)</Text>
           </View>
         </View>
 

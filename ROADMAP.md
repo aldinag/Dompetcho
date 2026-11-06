@@ -160,7 +160,7 @@ touch" above.
       constant (e.g. `src/constants/links.ts`). No new dependency, and don't change the
       published policy page itself (it lives on the `gh-pages` branch, separate from app code).
 
-- [ ] **Show the real app version on Profile.** `ProfileScreen` hardcodes "Versi 1.0 (MVP1)".
+- [x] **Show the real app version on Profile.** `ProfileScreen` hardcodes "Versi 1.0 (MVP1)".
       Replace it with a single source-of-truth constant (e.g. `src/config/appInfo.ts`) and add
       a Jest test that reads `android/app/build.gradle` and fails if its `versionName` ever
       drifts from that constant, so the two can't silently disagree. No new native
