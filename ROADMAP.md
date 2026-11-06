@@ -139,7 +139,7 @@ Things Google Play requires of the app itself before a human can submit it. None
 publish anything — see "Firebase App Distribution is the only release channel automation may
 touch" above.
 
-- [ ] **In-app account deletion.** Play requires any app that lets users create an account to
+- [x] **In-app account deletion.** Play requires any app that lets users create an account to
       also let them delete it from inside the app. Add a "Hapus Akun" row to `ProfileScreen`
       (below "Keluar", styled as destructive via `theme.danger`) with a two-step confirmation
       `Alert` that spells out that every expense, account tag, and receipt scan is permanently
@@ -160,7 +160,7 @@ touch" above.
       constant (e.g. `src/constants/links.ts`). No new dependency, and don't change the
       published policy page itself (it lives on the `gh-pages` branch, separate from app code).
 
-- [ ] **Show the real app version on Profile.** `ProfileScreen` hardcodes "Versi 1.0 (MVP1)".
+- [x] **Show the real app version on Profile.** `ProfileScreen` hardcodes "Versi 1.0 (MVP1)".
       Replace it with a single source-of-truth constant (e.g. `src/config/appInfo.ts`) and add
       a Jest test that reads `android/app/build.gradle` and fails if its `versionName` ever
       drifts from that constant, so the two can't silently disagree. No new native
@@ -168,7 +168,7 @@ touch" above.
 
 ## More features
 
-- [ ] **Let Summary's chart cover any month, not just the latest.** `SummaryScreen`'s donut
+- [x] **Let Summary's chart cover any month, not just the latest.** `SummaryScreen`'s donut
       chart and legend always show the most recent month that has expenses. Add a compact
       month selector above the chart (previous/next chevrons using existing `Icon`s, label
       like "September 2026", disabled at the first/last month that has data) that drives the
