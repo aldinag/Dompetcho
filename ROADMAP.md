@@ -168,7 +168,7 @@ touch" above.
 
 ## More features
 
-- [ ] **Let Summary's chart cover any month, not just the latest.** `SummaryScreen`'s donut
+- [x] **Let Summary's chart cover any month, not just the latest.** `SummaryScreen`'s donut
       chart and legend always show the most recent month that has expenses. Add a compact
       month selector above the chart (previous/next chevrons using existing `Icon`s, label
       like "September 2026", disabled at the first/last month that has data) that drives the
