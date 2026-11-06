@@ -1,6 +1,17 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { PRIVACY_POLICY_URL } from '../constants/links';
 import { radius } from '../constants/radius';
 import { spacing } from '../constants/spacing';
 import { typography } from '../constants/typography';
@@ -46,6 +57,14 @@ export function LoginScreen() {
       </TouchableOpacity>
 
       <EmailPasswordLogin />
+
+      <TouchableOpacity
+        onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+        accessibilityRole="link"
+        accessibilityLabel="Kebijakan Privasi"
+      >
+        <Text style={[styles.privacyLink, { color: theme.textMuted }]}>Kebijakan Privasi</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -217,5 +236,11 @@ const styles = StyleSheet.create({
     ...typography.caption,
     textAlign: 'center',
     marginTop: spacing['2xs'],
+  },
+  privacyLink: {
+    ...typography.caption,
+    textAlign: 'center',
+    textDecorationLine: 'underline',
+    marginTop: spacing.md,
   },
 });

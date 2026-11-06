@@ -1,11 +1,12 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React from 'react';
-import { ActivityIndicator, Alert, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '../components/Icon';
 import { APP_VERSION } from '../config/appInfo';
 import { cardShadow } from '../constants/elevation';
+import { PRIVACY_POLICY_URL } from '../constants/links';
 import { radius } from '../constants/radius';
 import { spacing } from '../constants/spacing';
 import { typography } from '../constants/typography';
@@ -101,6 +102,18 @@ export function ProfileScreen() {
             <Text style={[styles.rowValue, { color: theme.text }]}>Versi {APP_VERSION} (MVP1)</Text>
           </View>
         </View>
+
+        <TouchableOpacity
+          style={[styles.card, cardShadow, { backgroundColor: theme.surface }]}
+          onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+          accessibilityRole="button"
+          accessibilityLabel="Kebijakan Privasi"
+        >
+          <View style={styles.navRow}>
+            <Text style={[styles.rowValue, { color: theme.text }]}>Kebijakan Privasi</Text>
+            <Icon name="chevron-right" size={20} color={theme.textMuted} />
+          </View>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.card, cardShadow, { backgroundColor: theme.surface }]}
