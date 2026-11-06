@@ -1,7 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React from 'react';
-import { Alert, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '../components/Icon';
 import { cardShadow } from '../constants/elevation';
@@ -12,6 +12,7 @@ import { useStatusBarStyle } from '../hooks/useStatusBarStyle';
 import { useTheme } from '../hooks/useTheme';
 import { RootStackParamList } from '../navigation/types';
 import { useAuthStore } from '../store/useAuthStore';
+import { useExpenseStore } from '../store/useExpenseStore';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -22,12 +23,45 @@ export function ProfileScreen() {
   const navigation = useNavigation<Nav>();
   const user = useAuthStore(state => state.user);
   const signOut = useAuthStore(state => state.signOut);
+  const deletingAccount = useAuthStore(state => state.deletingAccount);
+  const deleteAccount = useAuthStore(state => state.deleteAccount);
 
   function confirmLogout() {
     Alert.alert('Keluar', 'Yakin ingin keluar?', [
       { text: 'Batal', style: 'cancel' },
       { text: 'Keluar', style: 'destructive', onPress: () => signOut() },
     ]);
+  }
+
+  function confirmDeleteAccount() {
+    Alert.alert(
+      'Hapus Akun',
+      'Semua pengeluaran, tag akun, dan hasil pindai struk Anda akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.',
+      [
+        { text: 'Batal', style: 'cancel' },
+        { text: 'Lanjutkan', style: 'destructive', onPress: confirmDeleteAccountFinal },
+      ],
+    );
+  }
+
+  function confirmDeleteAccountFinal() {
+    Alert.alert(
+      'Konfirmasi Terakhir',
+      'Akun Anda beserta seluruh datanya akan dihapus selamanya dan tidak bisa dikembalikan. Lanjutkan hapus akun?',
+      [
+        { text: 'Batal', style: 'cancel' },
+        { text: 'Hapus Akun', style: 'destructive', onPress: handleDeleteAccount },
+      ],
+    );
+  }
+
+  async function handleDeleteAccount() {
+    try {
+      await deleteAccount();
+      useExpenseStore.getState().reset();
+    } catch (error: any) {
+      Alert.alert('Gagal menghapus akun', error?.message ?? 'Silakan coba lagi.');
+    }
   }
 
   if (!user) return null;
@@ -86,6 +120,26 @@ export function ProfileScreen() {
           accessibilityLabel="Keluar"
         >
           <Text style={[styles.logoutText, { color: theme.danger }]}>Keluar</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.card,
+            styles.logoutCard,
+            cardShadow,
+            { backgroundColor: theme.surface },
+            deletingAccount && styles.buttonDisabled,
+          ]}
+          onPress={confirmDeleteAccount}
+          disabled={deletingAccount}
+          accessibilityRole="button"
+          accessibilityLabel="Hapus Akun"
+        >
+          {deletingAccount ? (
+            <ActivityIndicator color={theme.danger} />
+          ) : (
+            <Text style={[styles.logoutText, { color: theme.danger }]}>Hapus Akun</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -162,5 +216,8 @@ const styles = StyleSheet.create({
   logoutText: {
     ...typography.h2,
     fontWeight: '700',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });
