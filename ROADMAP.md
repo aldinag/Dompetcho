@@ -174,7 +174,7 @@ touch" above.
       like "September 2026", disabled at the first/last month that has data) that drives the
       chart + legend. Default stays "latest month". The month-grouped list below is unchanged.
 
-- [ ] **Break Summary down by source account, not just category.** Now that expenses can be
+- [x] **Break Summary down by source account, not just category.** Now that expenses can be
       tagged with an account (see "Tag each expense with a source account"), add a
       "Kategori | Akun" segmented toggle above `SummaryScreen`'s chart that re-slices the same
       month's expenses by `account_id` (untagged ones grouped as "Tanpa Akun", using a neutral

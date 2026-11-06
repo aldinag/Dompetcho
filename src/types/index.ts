@@ -47,6 +47,7 @@ export interface Expense {
   type: TransactionType;
   created_at: string;
   category?: Category | null;
+  account?: Account | null;
 }
 
 export interface ReceiptScan {
