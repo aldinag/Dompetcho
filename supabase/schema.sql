@@ -221,3 +221,23 @@ create policy "Users can update their own accounts" on public.accounts
 drop policy if exists "Users can delete their own accounts" on public.accounts;
 create policy "Users can delete their own accounts" on public.accounts
   for delete using (user_id = auth.uid());
+
+-- === Self-serve account deletion ============================================
+-- The client can't delete its own `auth.users` row directly, so it calls this via
+-- `supabase.rpc('delete_my_account')` instead. `security definer` lets it run with the
+-- privileges of the function's owner (the role that ran this script), which can reach
+-- `auth.users`; `auth.uid()` still scopes it to the caller's own row. The cascading FKs
+-- above (`users` -> `auth.users`, and `categories`/`expenses`/`receipt_scans`/`accounts` ->
+-- `users`, all `on delete cascade`) take care of wiping every bit of the user's data.
+create or replace function public.delete_my_account()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from auth.users where id = auth.uid();
+end;
+$$;
+
+grant execute on function public.delete_my_account() to authenticated;
