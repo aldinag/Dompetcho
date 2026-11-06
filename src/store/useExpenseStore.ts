@@ -29,6 +29,8 @@ interface ExpenseState {
   addAccount: (userId: string, name: string, kind: AccountKind) => Promise<void>;
   renameAccount: (id: string, name: string, kind: AccountKind) => Promise<void>;
   removeAccount: (id: string) => Promise<void>;
+  /** Clears everything loaded for the previous user — called after account deletion. */
+  reset: () => void;
 }
 
 function currentMonthTotals() {
@@ -179,4 +181,18 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     await deleteAccount(id);
     set(state => ({ accounts: state.accounts.filter(a => a.id !== id) }));
   },
+
+  reset: () =>
+    set({
+      expenses: [],
+      hasMoreExpenses: false,
+      loadingMoreExpenses: false,
+      balance: 0,
+      monthIncome: 0,
+      monthExpense: 0,
+      categories: [],
+      accounts: [],
+      loading: false,
+      refreshing: false,
+    }),
 }));

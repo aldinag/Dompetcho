@@ -7,6 +7,7 @@ interface AuthState {
   user: AppUser | null;
   initializing: boolean;
   signingIn: boolean;
+  deletingAccount: boolean;
   init: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   /**
@@ -22,6 +23,13 @@ interface AuthState {
    */
   signUpWithPassword: (email: string, password: string) => Promise<boolean>;
   signOut: () => Promise<void>;
+  /**
+   * Permanently deletes the signed-in user's account (Play Store requires any app with
+   * account creation to also offer in-app deletion). Calls the `delete_my_account` RPC,
+   * which cascades through every table owned by the user, then signs out locally so the
+   * now-stale session is cleared too.
+   */
+  deleteAccount: () => Promise<void>;
 }
 
 async function fetchProfile(userId: string): Promise<AppUser | null> {
@@ -37,6 +45,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   initializing: true,
   signingIn: false,
+  deletingAccount: false,
 
   init: async () => {
     const { data } = await supabase.auth.getSession();
@@ -99,5 +108,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.warn('Google sign-out skipped', error);
     }
     set({ user: null });
+  },
+
+  deleteAccount: async () => {
+    set({ deletingAccount: true });
+    try {
+      const { error } = await supabase.rpc('delete_my_account');
+      if (error) throw error;
+      await get().signOut();
+    } finally {
+      set({ deletingAccount: false });
+    }
   },
 }));
