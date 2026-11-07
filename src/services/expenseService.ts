@@ -16,17 +16,28 @@ export interface CreateExpenseInput {
 export interface ListExpensesOptions {
   limit?: number;
   offset?: number;
+  /** Matched against `note` with a case-insensitive substring search (`ilike`). */
+  noteSearch?: string;
+  categoryId?: string;
 }
 
 // With no options, fetches every row — Summary's all-time, all-category month grouping
 // still needs that. Home's recent-transactions list passes `limit` (and a growing `offset`
-// for "load more") so it doesn't pull the whole table on every load.
+// for "load more") so it doesn't pull the whole table on every load. `noteSearch`/`categoryId`
+// filter server-side (not over the already-loaded page), so a match outside the loaded page
+// is never silently missed.
 export async function listExpenses(options: ListExpensesOptions = {}): Promise<Expense[]> {
   let query = supabase
     .from('expenses')
     .select('*, category:categories(*)')
     .order('date', { ascending: false })
     .order('created_at', { ascending: false });
+  if (options.noteSearch) {
+    query = query.ilike('note', `%${options.noteSearch}%`);
+  }
+  if (options.categoryId) {
+    query = query.eq('category_id', options.categoryId);
+  }
   if (options.limit !== undefined) {
     const offset = options.offset ?? 0;
     query = query.range(offset, offset + options.limit - 1);
