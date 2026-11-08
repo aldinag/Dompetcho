@@ -1,6 +1,5 @@
 import { supabase } from '../lib/supabase';
 import { Expense, ExpenseSource, TransactionType } from '../types';
-import { calculateBalance } from '../utils/balance';
 
 export interface CreateExpenseInput {
   userId: string;
@@ -18,9 +17,9 @@ export interface ListExpensesOptions {
   offset?: number;
 }
 
-// With no options, fetches every row — Summary's all-time, all-category month grouping
-// still needs that. Home's recent-transactions list passes `limit` (and a growing `offset`
-// for "load more") so it doesn't pull the whole table on every load.
+// Home's recent-transactions list passes `limit` (and a growing `offset` for "load more") so
+// it doesn't pull the whole table on every load. Summary's month × category breakdown has its
+// own, already-aggregated RPC (`getExpenseBreakdownByMonth`) instead of calling this unbounded.
 export async function listExpenses(options: ListExpensesOptions = {}): Promise<Expense[]> {
   let query = supabase
     .from('expenses')
@@ -42,29 +41,46 @@ export interface ExpenseTotals {
   monthExpense: number;
 }
 
-// Home's "Sisa Saldo" needs the all-time sum, which can't come from a bounded page — so this
-// still scans every row, but only the two columns the sum actually needs (no category join),
-// which is far lighter than the listing above. A server-side aggregate (a Postgres RPC) would
-// avoid the scan entirely; left as a follow-up rather than folded into this change.
+// Backed by the `expense_totals` Postgres RPC (see supabase/schema.sql) — the all-time
+// balance and the current month's income/expense are summed server-side instead of pulling
+// every row down to sum client-side (see ROADMAP's "Move the totals and Summary breakdown to
+// server-side aggregates").
 export async function getExpenseTotals(monthStart: string, monthEnd: string): Promise<ExpenseTotals> {
-  const [allTime, thisMonth] = await Promise.all([
-    supabase.from('expenses').select('amount, type'),
-    supabase.from('expenses').select('amount, type').gte('date', monthStart).lt('date', monthEnd),
-  ]);
-  if (allTime.error) throw allTime.error;
-  if (thisMonth.error) throw thisMonth.error;
+  const { data, error } = await supabase
+    .rpc('expense_totals', { month_start: monthStart, month_end: monthEnd })
+    .single();
+  if (error) throw error;
 
-  const balance = calculateBalance(allTime.data ?? []);
+  const row = data as { balance: number; month_income: number; month_expense: number };
+  return {
+    balance: Number(row.balance),
+    monthIncome: Number(row.month_income),
+    monthExpense: Number(row.month_expense),
+  };
+}
 
-  let monthIncome = 0;
-  let monthExpense = 0;
-  for (const e of thisMonth.data ?? []) {
-    const amount = Number(e.amount);
-    if (e.type === 'income') monthIncome += amount;
-    else monthExpense += amount;
-  }
+export interface MonthlyCategoryBreakdown {
+  monthKey: string; // "YYYY-MM"
+  categoryId: string | null;
+  categoryName: string | null;
+  amount: number;
+}
 
-  return { balance, monthIncome, monthExpense };
+// Backed by the `expense_breakdown_by_month` Postgres RPC — Summary's month × category
+// breakdown summed server-side instead of pulling every expense (with its category join)
+// down to group client-side. Expense-only (income is excluded, same as before), one row per
+// month/category combination that has at least one expense, newest month first and largest
+// category first within each month.
+export async function getExpenseBreakdownByMonth(): Promise<MonthlyCategoryBreakdown[]> {
+  const { data, error } = await supabase.rpc('expense_breakdown_by_month');
+  if (error) throw error;
+
+  return (data ?? []).map((row: any) => ({
+    monthKey: row.month_key,
+    categoryId: row.category_id,
+    categoryName: row.category_name,
+    amount: Number(row.amount),
+  }));
 }
 
 export async function createExpense(input: CreateExpenseInput): Promise<Expense> {

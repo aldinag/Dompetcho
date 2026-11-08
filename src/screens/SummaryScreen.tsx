@@ -12,10 +12,8 @@ import { spacing } from '../constants/spacing';
 import { tabularNums, typography } from '../constants/typography';
 import { useStatusBarStyle } from '../hooks/useStatusBarStyle';
 import { useTheme } from '../hooks/useTheme';
-import { listExpenses } from '../services/expenseService';
-import { Expense } from '../types';
+import { getExpenseBreakdownByMonth, MonthlyCategoryBreakdown } from '../services/expenseService';
 import { formatRupiah } from '../utils/format';
-import { localMonthKey } from '../utils/timestamp';
 
 interface CategoryRow {
   categoryId: string;
@@ -35,37 +33,27 @@ function monthLabel(monthKey: string): string {
   return new Date(year, month - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 }
 
-function groupByMonth(expenses: Expense[]): MonthSection[] {
+// The `expense_breakdown_by_month` RPC (see supabase/schema.sql) already does the expense-only
+// filtering, month/category grouping, and summing server-side, and already orders rows newest
+// month first and largest category first within each month — this just reshapes its flat rows
+// into the sections SectionList expects.
+function buildMonthSections(rows: MonthlyCategoryBreakdown[]): MonthSection[] {
   const sections: MonthSection[] = [];
   const indexByMonth = new Map<string, number>();
-  const categoryMaps = new Map<string, Map<string, CategoryRow>>();
 
-  for (const e of expenses) {
-    // "Total Pengeluaran" is expense-only — income doesn't belong in a spend breakdown.
-    if (e.type !== 'expense') continue;
-    const monthKey = localMonthKey(e.date);
-    let index = indexByMonth.get(monthKey);
+  for (const row of rows) {
+    let index = indexByMonth.get(row.monthKey);
     if (index === undefined) {
       index = sections.length;
-      indexByMonth.set(monthKey, index);
-      sections.push({ key: monthKey, title: monthLabel(monthKey), total: 0, data: [] });
-      categoryMaps.set(monthKey, new Map());
+      indexByMonth.set(row.monthKey, index);
+      sections.push({ key: row.monthKey, title: monthLabel(row.monthKey), total: 0, data: [] });
     }
-    const amount = Number(e.amount);
-    sections[index].total += amount;
-
-    const catMap = categoryMaps.get(monthKey)!;
-    const catKey = e.category?.id ?? 'uncategorized';
-    const existing = catMap.get(catKey);
-    if (existing) {
-      existing.amount += amount;
-    } else {
-      catMap.set(catKey, { categoryId: catKey, categoryName: e.category?.name, amount });
-    }
-  }
-
-  for (const section of sections) {
-    section.data = Array.from(categoryMaps.get(section.key)!.values()).sort((a, b) => b.amount - a.amount);
+    sections[index].total += row.amount;
+    sections[index].data.push({
+      categoryId: row.categoryId ?? 'uncategorized',
+      categoryName: row.categoryName ?? undefined,
+      amount: row.amount,
+    });
   }
 
   return sections;
@@ -74,29 +62,29 @@ function groupByMonth(expenses: Expense[]): MonthSection[] {
 export function SummaryScreen() {
   const theme = useTheme();
   useStatusBarStyle('default');
-  // Unlike Home's "Transaksi Terakhir" (now paginated — see ROADMAP's "Add pagination to
-  // listExpenses"), the month/category breakdown below needs every expense ever recorded, so
-  // it keeps its own unpaginated fetch here rather than sharing Home's bounded store state.
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  // The breakdown below covers every expense ever recorded (grouped by month), but as an
+  // already-aggregated RPC result rather than every raw expense row — see ROADMAP's "Move the
+  // totals and Summary breakdown to server-side aggregates".
+  const [breakdownRows, setBreakdownRows] = useState<MonthlyCategoryBreakdown[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    listExpenses().then(setExpenses).catch((error: any) => {
+    getExpenseBreakdownByMonth().then(setBreakdownRows).catch((error: any) => {
       Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
     });
   }, []);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    listExpenses()
-      .then(setExpenses)
+    getExpenseBreakdownByMonth()
+      .then(setBreakdownRows)
       .catch((error: any) => {
         Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
       })
       .finally(() => setRefreshing(false));
   }, []);
 
-  const sections = useMemo(() => groupByMonth(expenses), [expenses]);
+  const sections = useMemo(() => buildMonthSections(breakdownRows), [breakdownRows]);
   const overallTotal = useMemo(() => sections.reduce((sum, s) => sum + s.total, 0), [sections]);
 
   // Index into `sections`, which `groupByMonth` keeps in the newest-first order
