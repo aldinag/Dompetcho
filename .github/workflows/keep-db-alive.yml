@@ -1,0 +1,118 @@
+name: Keep Supabase awake
+
+# Supabase's free tier pauses a project after ~7 days with no API activity, which is what
+# "the DB is shut down when I go to use it" is. This pings the database once a day so it
+# never goes idle, and — if it has been paused anyway (e.g. this workflow was off for a
+# week) — asks the Supabase Management API to restore it and waits until it's healthy.
+#
+# This is infrastructure upkeep only: it never touches Google Play or Firebase, and it only
+# ever reads (a `limit=1` select) or restores the project. It doesn't write any data.
+#
+# Needs no new secrets for the daily ping: it reads SUPABASE_URL / SUPABASE_ANON_KEY out of
+# the existing DOMPETCHO_ENV_TS secret. The auto-restore path additionally needs
+# SUPABASE_ACCESS_TOKEN (a personal access token, supabase.com/dashboard/account/tokens) —
+# without it a paused project just fails this run, loudly, so GitHub emails you.
+#
+# Scheduled workflows run from the default branch (`dev`), and GitHub only starts the
+# schedule once this file is on it.
+on:
+  schedule:
+    - cron: '17 3 * * *' # daily, 03:17 UTC (10:17 WIB); off the hour to dodge GitHub's top-of-hour queue
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    name: Ping (and restore if paused)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Ping the database, restoring the project first if it is paused
+        env:
+          ENV_TS: ${{ secrets.DOMPETCHO_ENV_TS }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -u
+
+          if [ -z "$ENV_TS" ]; then
+            echo "::error::DOMPETCHO_ENV_TS secret is not set — can't find the Supabase URL."
+            exit 1
+          fi
+
+          # Pull the two values out of the pasted env.ts (`export const X = '...';`).
+          SUPABASE_URL=$(printf '%s\n' "$ENV_TS" | sed -nE "s/^export const SUPABASE_URL = ['\"]([^'\"]+)['\"].*/\1/p" | head -n1)
+          SUPABASE_ANON_KEY=$(printf '%s\n' "$ENV_TS" | sed -nE "s/^export const SUPABASE_ANON_KEY = ['\"]([^'\"]+)['\"].*/\1/p" | head -n1)
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::Couldn't read SUPABASE_URL / SUPABASE_ANON_KEY from DOMPETCHO_ENV_TS."
+            exit 1
+          fi
+          echo "::add-mask::$SUPABASE_ANON_KEY"
+
+          # https://<ref>.supabase.co -> <ref>
+          PROJECT_REF=$(printf '%s' "$SUPABASE_URL" | sed -E 's#^https?://([^.]+)\..*#\1#')
+
+          # A real (if tiny) query through PostgREST, so Postgres itself is exercised, not just
+          # the edge proxy. RLS makes this return [] for the anon role — a 200 is all we need.
+          # curl's -w prints 000 itself when the connection fails (DNS, timeout), so a failed
+          # request is `|| true`-ed rather than echoing a second 000.
+          ping() {
+            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+              -H "apikey: $SUPABASE_ANON_KEY" \
+              -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+              "$SUPABASE_URL/rest/v1/categories?select=id&limit=1" || true
+          }
+
+          project_status() {
+            curl -sS --max-time 30 \
+              -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+              "https://api.supabase.com/v1/projects/$PROJECT_REF" \
+              | sed -nE 's/.*"status":"([A-Z_]+)".*/\1/p' | head -n1
+          }
+
+          CODE=$(ping)
+          if [ "$CODE" = "200" ]; then
+            echo "Database is up (HTTP 200). Nothing to restore."
+            exit 0
+          fi
+          echo "Ping returned HTTP $CODE — the project may be paused."
+
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::Database didn't answer (HTTP $CODE) and SUPABASE_ACCESS_TOKEN isn't set, so it can't be restored automatically. Restore it in the Supabase dashboard, and add that secret to make this self-healing."
+            exit 1
+          fi
+
+          STATUS=$(project_status)
+          echo "Management API reports project status: ${STATUS:-unknown}"
+          case "$STATUS" in
+            INACTIVE|PAUSED)
+              echo "Restoring project $PROJECT_REF…"
+              RESTORE=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 60 -X POST \
+                -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+                "https://api.supabase.com/v1/projects/$PROJECT_REF/restore" || true)
+              if [ "$RESTORE" != "200" ] && [ "$RESTORE" != "201" ] && [ "$RESTORE" != "202" ]; then
+                echo "::error::Restore request failed (HTTP $RESTORE). A project paused for more than 90 days can only be restored from a backup in the dashboard."
+                exit 1
+              fi
+              ;;
+            ACTIVE_HEALTHY|COMING_UP|RESTORING|UNKNOWN|"")
+              echo "Not paused — waiting for it to come up."
+              ;;
+            *)
+              echo "::error::Project is in an unexpected state ($STATUS); check the Supabase dashboard."
+              exit 1
+              ;;
+          esac
+
+          # A restore takes a few minutes; poll up to ~12.
+          for i in $(seq 1 24); do
+            sleep 30
+            CODE=$(ping)
+            STATUS=$(project_status)
+            echo "[$i/24] ping HTTP $CODE, status ${STATUS:-unknown}"
+            if [ "$CODE" = "200" ]; then
+              echo "Database is back up."
+              exit 0
+            fi
+          done
+
+          echo "::error::Database still not answering after ~12 minutes (last status: ${STATUS:-unknown})."
+          exit 1
