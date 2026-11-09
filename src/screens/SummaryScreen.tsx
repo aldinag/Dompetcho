@@ -3,61 +3,15 @@ import { Alert, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CategoryDonutChart } from '../components/CategoryDonutChart';
 import { Icon } from '../components/Icon';
-import { categoryLabel } from '../constants/categoryLabels';
-import { categoryColor, categoryTint } from '../constants/categoryColors';
-import { categoryIcon } from '../constants/categoryIcons';
 import { cardShadow } from '../constants/elevation';
 import { radius } from '../constants/radius';
 import { spacing } from '../constants/spacing';
 import { tabularNums, typography } from '../constants/typography';
 import { useStatusBarStyle } from '../hooks/useStatusBarStyle';
 import { useTheme } from '../hooks/useTheme';
-import { getExpenseBreakdownByMonth, MonthlyCategoryBreakdown } from '../services/expenseService';
+import { getExpenseBreakdownByMonth, MonthlyExpenseBreakdown } from '../services/expenseService';
 import { formatRupiah } from '../utils/format';
-
-interface CategoryRow {
-  categoryId: string;
-  categoryName?: string;
-  amount: number;
-}
-
-interface MonthSection {
-  key: string;
-  title: string;
-  total: number;
-  data: CategoryRow[];
-}
-
-function monthLabel(monthKey: string): string {
-  const [year, month] = monthKey.split('-').map(Number);
-  return new Date(year, month - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-}
-
-// The `expense_breakdown_by_month` RPC (see supabase/schema.sql) already does the expense-only
-// filtering, month/category grouping, and summing server-side, and already orders rows newest
-// month first and largest category first within each month — this just reshapes its flat rows
-// into the sections SectionList expects.
-function buildMonthSections(rows: MonthlyCategoryBreakdown[]): MonthSection[] {
-  const sections: MonthSection[] = [];
-  const indexByMonth = new Map<string, number>();
-
-  for (const row of rows) {
-    let index = indexByMonth.get(row.monthKey);
-    if (index === undefined) {
-      index = sections.length;
-      indexByMonth.set(row.monthKey, index);
-      sections.push({ key: row.monthKey, title: monthLabel(row.monthKey), total: 0, data: [] });
-    }
-    sections[index].total += row.amount;
-    sections[index].data.push({
-      categoryId: row.categoryId ?? 'uncategorized',
-      categoryName: row.categoryName ?? undefined,
-      amount: row.amount,
-    });
-  }
-
-  return sections;
-}
+import { BreakdownMode, buildMonthSections } from '../utils/summaryBreakdown';
 
 export function SummaryScreen() {
   const theme = useTheme();
@@ -65,8 +19,9 @@ export function SummaryScreen() {
   // The breakdown below covers every expense ever recorded (grouped by month), but as an
   // already-aggregated RPC result rather than every raw expense row — see ROADMAP's "Move the
   // totals and Summary breakdown to server-side aggregates".
-  const [breakdownRows, setBreakdownRows] = useState<MonthlyCategoryBreakdown[]>([]);
+  const [breakdownRows, setBreakdownRows] = useState<MonthlyExpenseBreakdown[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [mode, setMode] = useState<BreakdownMode>('category');
 
   useEffect(() => {
     getExpenseBreakdownByMonth().then(setBreakdownRows).catch((error: any) => {
@@ -84,11 +39,11 @@ export function SummaryScreen() {
       .finally(() => setRefreshing(false));
   }, []);
 
-  const sections = useMemo(() => buildMonthSections(breakdownRows), [breakdownRows]);
+  const sections = useMemo(() => buildMonthSections(breakdownRows, mode), [breakdownRows, mode]);
   const overallTotal = useMemo(() => sections.reduce((sum, s) => sum + s.total, 0), [sections]);
 
-  // Index into `sections`, which `groupByMonth` keeps in the newest-first order
-  // `listExpenses` already sorts by — so 0 is the latest month and it's the default.
+  // Index into `sections`, which `buildMonthSections` keeps in the RPC's newest-first month
+  // order — so 0 is the latest month and it's the default.
   const [chartMonthIndex, setChartMonthIndex] = useState(0);
   const lastMonthIndex = Math.max(sections.length - 1, 0);
   const selectedMonthIndex = Math.min(chartMonthIndex, lastMonthIndex);
@@ -113,6 +68,31 @@ export function SummaryScreen() {
         <Text style={[styles.totalLabel, { color: theme.textMuted }]}>Total pengeluaran</Text>
       </View>
 
+      <View style={[styles.modeToggle, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        {(
+          [
+            { value: 'category', label: 'Kategori' },
+            { value: 'account', label: 'Akun' },
+          ] as const
+        ).map(option => {
+          const active = mode === option.value;
+          return (
+            <TouchableOpacity
+              key={option.value}
+              onPress={() => setMode(option.value)}
+              accessibilityRole="button"
+              accessibilityLabel={option.label}
+              accessibilityState={{ selected: active }}
+              style={[styles.modeButton, { backgroundColor: active ? theme.primary : theme.surface }]}
+            >
+              <Text style={[styles.modeButtonText, { color: active ? theme.primaryText : theme.textMuted }]}>
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       {chartSection ? (
         <View style={[styles.chartCard, cardShadow, { backgroundColor: theme.surface }]}>
           <View style={styles.monthSelector}>
@@ -125,7 +105,9 @@ export function SummaryScreen() {
             >
               <Icon name="chevron-left" size={20} color={hasOlderMonth ? theme.text : theme.textDisabled} />
             </TouchableOpacity>
-            <Text style={[styles.chartHeading, { color: theme.text }]}>Kategori · {chartSection.title}</Text>
+            <Text style={[styles.chartHeading, { color: theme.text }]}>
+              {mode === 'category' ? 'Kategori' : 'Akun'} · {chartSection.title}
+            </Text>
             <TouchableOpacity
               onPress={handleNewerMonth}
               disabled={!hasNewerMonth}
@@ -138,7 +120,7 @@ export function SummaryScreen() {
           </View>
           <View style={styles.chartRow}>
             <CategoryDonutChart
-              data={chartSection.data}
+              data={chartSection.data.map(row => ({ key: row.id, amount: row.amount, color: row.color }))}
               total={chartSection.total}
               trackColor={theme.border}
               centerLabelColor={theme.textMuted}
@@ -146,10 +128,10 @@ export function SummaryScreen() {
             />
             <View style={styles.legend}>
               {chartSection.data.map(item => (
-                <View key={item.categoryId} style={styles.legendRow}>
-                  <View style={[styles.legendDot, { backgroundColor: categoryColor(item.categoryName) }]} />
+                <View key={item.id} style={styles.legendRow}>
+                  <View style={[styles.legendDot, { backgroundColor: item.color }]} />
                   <Text style={[styles.legendLabel, { color: theme.text }]} numberOfLines={1}>
-                    {categoryLabel(item.categoryName)}
+                    {item.label}
                   </Text>
                   <Text style={[styles.legendPercent, tabularNums, { color: theme.textMuted }]}>
                     {chartSection.total > 0 ? Math.round((item.amount / chartSection.total) * 100) : 0}%
@@ -163,15 +145,19 @@ export function SummaryScreen() {
 
       <SectionList
         sections={sections}
-        keyExtractor={(item, index) => `${item.categoryId}-${index}`}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
         renderItem={({ item }) => (
           <View style={styles.listRow}>
             <View style={styles.listLeft}>
-              <View style={[styles.iconBadge, { backgroundColor: categoryTint(item.categoryName) }]}>
-                <Icon name={categoryIcon(item.categoryName)} size={18} color={categoryColor(item.categoryName)} />
-              </View>
+              {item.icon ? (
+                <View style={[styles.iconBadge, { backgroundColor: `${item.color}26` }]}>
+                  <Icon name={item.icon} size={18} color={item.color} />
+                </View>
+              ) : (
+                <View style={[styles.iconBadge, { backgroundColor: item.color }]} />
+              )}
               <Text style={[styles.listLabel, { color: theme.text }]} numberOfLines={1}>
-                {categoryLabel(item.categoryName)}
+                {item.label}
               </Text>
             </View>
             <Text style={[styles.listAmount, tabularNums, { color: theme.textMuted }]}>
@@ -210,6 +196,25 @@ const styles = StyleSheet.create({
   },
   total: { ...typography.display },
   totalLabel: { ...typography.caption, marginTop: spacing['2xs'] },
+  modeToggle: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: 2,
+    marginBottom: spacing.md,
+  },
+  modeButton: {
+    paddingHorizontal: spacing.md,
+    minHeight: 36,
+    borderRadius: radius.md - 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
   chartCard: {
     borderRadius: radius.lg,
     padding: spacing.md,

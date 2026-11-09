@@ -23,7 +23,7 @@ export interface ListExpensesOptions {
 export async function listExpenses(options: ListExpensesOptions = {}): Promise<Expense[]> {
   let query = supabase
     .from('expenses')
-    .select('*, category:categories(*)')
+    .select('*, category:categories(*), account:accounts(*)')
     .order('date', { ascending: false })
     .order('created_at', { ascending: false });
   if (options.limit !== undefined) {
@@ -59,19 +59,22 @@ export async function getExpenseTotals(monthStart: string, monthEnd: string): Pr
   };
 }
 
-export interface MonthlyCategoryBreakdown {
+export interface MonthlyExpenseBreakdown {
   monthKey: string; // "YYYY-MM"
   categoryId: string | null;
   categoryName: string | null;
+  accountId: string | null;
+  accountName: string | null;
   amount: number;
 }
 
-// Backed by the `expense_breakdown_by_month` Postgres RPC — Summary's month × category
-// breakdown summed server-side instead of pulling every expense (with its category join)
-// down to group client-side. Expense-only (income is excluded, same as before), one row per
-// month/category combination that has at least one expense, newest month first and largest
-// category first within each month.
-export async function getExpenseBreakdownByMonth(): Promise<MonthlyCategoryBreakdown[]> {
+// Backed by the `expense_breakdown_by_month` Postgres RPC — Summary's breakdown summed
+// server-side instead of pulling every expense (with its category/account joins) down to group
+// client-side. Expense-only (income is excluded, same as before), one row per
+// month/category/account combination that has at least one expense, newest month first. The
+// Kategori/Akun toggle collapses these rows to one dimension client-side (see
+// utils/summaryBreakdown.ts).
+export async function getExpenseBreakdownByMonth(): Promise<MonthlyExpenseBreakdown[]> {
   const { data, error } = await supabase.rpc('expense_breakdown_by_month');
   if (error) throw error;
 
@@ -79,6 +82,8 @@ export async function getExpenseBreakdownByMonth(): Promise<MonthlyCategoryBreak
     monthKey: row.month_key,
     categoryId: row.category_id,
     categoryName: row.category_name,
+    accountId: row.account_id,
+    accountName: row.account_name,
     amount: Number(row.amount),
   }));
 }
