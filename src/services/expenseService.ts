@@ -29,7 +29,7 @@ export interface ListExpensesOptions {
 export async function listExpenses(options: ListExpensesOptions = {}): Promise<Expense[]> {
   let query = supabase
     .from('expenses')
-    .select('*, category:categories(*)')
+    .select('*, category:categories(*), account:accounts(*)')
     .order('date', { ascending: false })
     .order('created_at', { ascending: false });
   if (options.noteSearch) {

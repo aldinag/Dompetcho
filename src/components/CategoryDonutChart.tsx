@@ -1,17 +1,17 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Circle, G, Svg } from 'react-native-svg';
-import { categoryColor } from '../constants/categoryColors';
 import { tabularNums, typography } from '../constants/typography';
 import { formatRupiah } from '../utils/format';
 
-interface CategorySlice {
-  categoryName?: string;
+interface DonutSlice {
+  key: string;
   amount: number;
+  color: string;
 }
 
 interface CategoryDonutChartProps {
-  data: CategorySlice[];
+  data: DonutSlice[];
   total: number;
   size?: number;
   strokeWidth?: number;
@@ -21,10 +21,11 @@ interface CategoryDonutChartProps {
 }
 
 /**
- * A ring built from stacked `Circle` strokes (one per category, `strokeDasharray`/
+ * A ring built from stacked `Circle` strokes (one per slice, `strokeDasharray`/
  * `strokeDashoffset` carving out each slice's share of the circumference) rather than
  * `<Path>` arcs — simpler and less error-prone than computing arc path geometry by hand,
- * and it's the standard technique for a segmented ring in SVG.
+ * and it's the standard technique for a segmented ring in SVG. Takes a `color` per slice
+ * from the caller (Summary's category or account breakdown) rather than deriving it itself.
  */
 export function CategoryDonutChart({
   data,
@@ -58,11 +59,11 @@ export function CategoryDonutChart({
         <G rotation={-90} origin={`${center}, ${center}`}>
           {slices.map((slice, index) => (
             <Circle
-              key={`${slice.categoryName ?? 'other'}-${index}`}
+              key={`${slice.key}-${index}`}
               cx={center}
               cy={center}
               r={radius}
-              stroke={categoryColor(slice.categoryName)}
+              stroke={slice.color}
               strokeWidth={strokeWidth}
               fill="none"
               strokeDasharray={`${slice.length} ${circumference - slice.length}`}
