@@ -63,17 +63,24 @@ jobs:
           echo "${{ secrets.DOMPETCHO_ENV_TS }}" > src/config/env.ts
 
       # Decodes the release keystore from a secret into a file CI-only, never committed —
-      # same pattern as DOMPETCHO_ENV_TS above. Fails loudly (rather than silently falling
-      # back to the debug keystore, which android/app/build.gradle's signingConfigs block
-      # would otherwise do) since a debug-signed build here would be a broken release that
-      # looks like it succeeded.
-      - name: Write release keystore from secret
+      # same pattern as DOMPETCHO_ENV_TS above.
+      #
+      # TEMPORARY FALLBACK: until the DOMPETCHO_RELEASE_* secrets are added, this warns and
+      # lets android/app/build.gradle sign with the debug keystore instead of failing the whole
+      # run, so Firebase testers keep getting builds. A debug-signed APK is fine for Firebase
+      # App Distribution but can NEVER be uploaded to Google Play. Once the secrets exist the
+      # real key is used automatically — and note testers must uninstall a build signed with
+      # the other key once, since Android refuses an update whose signature doesn't match.
+      # Remove this fallback (restore `exit 1` in the else branch) when signing is set up.
+      - name: Write release keystore from secret (falls back to debug signing if unset)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.DOMPETCHO_RELEASE_KEYSTORE_BASE64 }}
         run: |
-          if [ -z "${{ secrets.DOMPETCHO_RELEASE_KEYSTORE_BASE64 }}" ]; then
-            echo "::error::DOMPETCHO_RELEASE_KEYSTORE_BASE64 secret is not set — see README's release-signing section."
-            exit 1
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::DOMPETCHO_RELEASE_KEYSTORE_BASE64 secret is not set — building with the DEBUG keystore. Fine for Firebase testers, not valid for Google Play. See README's release-signing section."
+            exit 0
           fi
-          echo "${{ secrets.DOMPETCHO_RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
           echo "DOMPETCHO_RELEASE_STORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
 
       - name: Build release APK
