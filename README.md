@@ -226,6 +226,24 @@ the Firebase console (App Distribution > Testers & Groups) — add yourself (and
 to whichever group(s) you want builds to reach. Rename the groups in `distribute.yml` if you
 call them something else.
 
+### Keeping the Supabase database awake
+
+Supabase's free tier **pauses a project after about a week with no activity**, which shows
+up as the app suddenly not loading anything. `.github/workflows/keep-db-alive.yml` runs
+daily (and on demand from the Actions tab) to prevent that: it makes a tiny read-only query
+using the Supabase URL/key already inside `DOMPETCHO_ENV_TS`, so the daily ping needs no
+extra setup.
+
+If the project has already been paused (the workflow was off, or you're setting this up
+late), a ping can't wake it. For that, add one more secret:
+
+| Secret | What it is |
+| --- | --- |
+| `SUPABASE_ACCESS_TOKEN` | A personal access token from [supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens). Lets the workflow call the Management API to restore a paused project and wait until it's healthy. Without it, a paused project just makes the run fail (GitHub emails you) and you restore it in the dashboard. |
+
+A project paused for more than 90 days can no longer be restored in place — only from a
+backup in the dashboard — so don't leave this off for months.
+
 ### Release signing
 
 `android/app/build.gradle`'s `release` build type signs with a real keystore read from the
