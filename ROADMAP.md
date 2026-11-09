@@ -212,7 +212,7 @@ touch" above.
       Distribution) — so native build breakage now surfaces immediately rather than needing
       a separate job. This still doesn't replace testing on a real device.
 
-- [ ] **Move the totals and Summary breakdown to server-side aggregates.** `getExpenseTotals`
+- [x] **Move the totals and Summary breakdown to server-side aggregates.** `getExpenseTotals`
       still pulls every row's `amount, type` to sum client-side, and `SummaryScreen` still
       pulls every expense (with its category join) to group by month/category — both stay
       O(history) for the life of an account. Add Postgres RPC functions to

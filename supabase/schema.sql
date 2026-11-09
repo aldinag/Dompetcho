@@ -241,3 +241,70 @@ end;
 $$;
 
 grant execute on function public.delete_my_account() to authenticated;
+
+-- === Server-side aggregates ==================================================
+-- Home's "Sisa Saldo"/month totals and Summary's month x category breakdown previously
+-- pulled every expense row down to the client to sum/group there — both `security invoker`
+-- so RLS (`user_id = auth.uid()`) still scopes them to the caller, same as every other table
+-- access here; no `auth.uid()` filter would be needed only if this ran as the function
+-- owner, which it deliberately doesn't.
+
+create or replace function public.expense_totals(month_start timestamptz, month_end timestamptz)
+returns table (balance numeric, month_income numeric, month_expense numeric)
+language sql
+security invoker
+stable
+set search_path = public
+as $$
+  select
+    coalesce(sum(case when type = 'income' then amount else -amount end), 0) as balance,
+    coalesce(sum(case when type = 'income' and date >= month_start and date < month_end
+      then amount else 0 end), 0) as month_income,
+    coalesce(sum(case when type = 'expense' and date >= month_start and date < month_end
+      then amount else 0 end), 0) as month_expense
+  from public.expenses
+  where user_id = auth.uid();
+$$;
+
+grant execute on function public.expense_totals(timestamptz, timestamptz) to authenticated;
+
+-- Expense-only (income doesn't belong in a spend breakdown, same as the client-side grouping
+-- it replaces), one row per month/category/account combination that has at least one expense.
+-- Summary's Kategori/Akun toggle collapses these rows to whichever dimension is selected, so
+-- the finest grain is returned once rather than one RPC per mode. Months are bucketed in
+-- Asia/Jakarta local time, matching the one-time `date` column migration above (this app's
+-- "local day" has always meant WIB) rather than the database server's own zone.
+--
+-- Dropped first because `create or replace` can't change a function's return columns, and
+-- this one gained account_id/account_name after its first version.
+drop function if exists public.expense_breakdown_by_month();
+create function public.expense_breakdown_by_month()
+returns table (
+  month_key text,
+  category_id uuid,
+  category_name text,
+  account_id uuid,
+  account_name text,
+  amount numeric
+)
+language sql
+security invoker
+stable
+set search_path = public
+as $$
+  select
+    to_char(e.date at time zone 'Asia/Jakarta', 'YYYY-MM') as month_key,
+    e.category_id,
+    c.name as category_name,
+    e.account_id,
+    a.name as account_name,
+    sum(e.amount) as amount
+  from public.expenses e
+  left join public.categories c on c.id = e.category_id
+  left join public.accounts a on a.id = e.account_id
+  where e.user_id = auth.uid() and e.type = 'expense'
+  group by month_key, e.category_id, c.name, e.account_id, a.name
+  order by month_key desc, amount desc;
+$$;
+
+grant execute on function public.expense_breakdown_by_month() to authenticated;

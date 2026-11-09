@@ -2,122 +2,48 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CategoryDonutChart } from '../components/CategoryDonutChart';
-import { Icon, IconName } from '../components/Icon';
-import { accountColor } from '../constants/accountColors';
-import { categoryLabel } from '../constants/categoryLabels';
-import { categoryColor } from '../constants/categoryColors';
-import { categoryIcon } from '../constants/categoryIcons';
+import { Icon } from '../components/Icon';
 import { cardShadow } from '../constants/elevation';
 import { radius } from '../constants/radius';
 import { spacing } from '../constants/spacing';
 import { tabularNums, typography } from '../constants/typography';
 import { useStatusBarStyle } from '../hooks/useStatusBarStyle';
 import { useTheme } from '../hooks/useTheme';
-import { listExpenses } from '../services/expenseService';
-import { Expense } from '../types';
+import { getExpenseBreakdownByMonth, MonthlyExpenseBreakdown } from '../services/expenseService';
 import { formatRupiah } from '../utils/format';
-import { localMonthKey } from '../utils/timestamp';
-
-type BreakdownMode = 'category' | 'account';
-
-interface BreakdownRow {
-  id: string;
-  label: string;
-  color: string;
-  icon?: IconName;
-  amount: number;
-}
-
-interface MonthSection {
-  key: string;
-  title: string;
-  total: number;
-  data: BreakdownRow[];
-}
-
-function monthLabel(monthKey: string): string {
-  const [year, month] = monthKey.split('-').map(Number);
-  return new Date(year, month - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-}
-
-// Classifies a single expense into the row it contributes to under the chosen breakdown
-// mode — a category (falling back to "Lainnya"/uncategorized) or a source account
-// (falling back to "Tanpa Akun" for untagged expenses, see ROADMAP's account-tag item).
-function rowFor(e: Expense, mode: BreakdownMode): Omit<BreakdownRow, 'amount'> {
-  if (mode === 'category') {
-    const name = e.category?.name;
-    return { id: e.category?.id ?? 'uncategorized', label: categoryLabel(name), color: categoryColor(name), icon: categoryIcon(name) };
-  }
-  return { id: e.account_id ?? 'untagged', label: e.account?.name ?? 'Tanpa Akun', color: accountColor(e.account_id) };
-}
-
-function groupByMonth(expenses: Expense[], mode: BreakdownMode): MonthSection[] {
-  const sections: MonthSection[] = [];
-  const indexByMonth = new Map<string, number>();
-  const rowMaps = new Map<string, Map<string, BreakdownRow>>();
-
-  for (const e of expenses) {
-    // "Total Pengeluaran" is expense-only — income doesn't belong in a spend breakdown.
-    if (e.type !== 'expense') continue;
-    const monthKey = localMonthKey(e.date);
-    let index = indexByMonth.get(monthKey);
-    if (index === undefined) {
-      index = sections.length;
-      indexByMonth.set(monthKey, index);
-      sections.push({ key: monthKey, title: monthLabel(monthKey), total: 0, data: [] });
-      rowMaps.set(monthKey, new Map());
-    }
-    const amount = Number(e.amount);
-    sections[index].total += amount;
-
-    const row = rowFor(e, mode);
-    const rowMap = rowMaps.get(monthKey)!;
-    const existing = rowMap.get(row.id);
-    if (existing) {
-      existing.amount += amount;
-    } else {
-      rowMap.set(row.id, { ...row, amount });
-    }
-  }
-
-  for (const section of sections) {
-    section.data = Array.from(rowMaps.get(section.key)!.values()).sort((a, b) => b.amount - a.amount);
-  }
-
-  return sections;
-}
+import { BreakdownMode, buildMonthSections } from '../utils/summaryBreakdown';
 
 export function SummaryScreen() {
   const theme = useTheme();
   useStatusBarStyle('default');
-  // Unlike Home's "Transaksi Terakhir" (now paginated — see ROADMAP's "Add pagination to
-  // listExpenses"), the month/category breakdown below needs every expense ever recorded, so
-  // it keeps its own unpaginated fetch here rather than sharing Home's bounded store state.
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  // The breakdown below covers every expense ever recorded (grouped by month), but as an
+  // already-aggregated RPC result rather than every raw expense row — see ROADMAP's "Move the
+  // totals and Summary breakdown to server-side aggregates".
+  const [breakdownRows, setBreakdownRows] = useState<MonthlyExpenseBreakdown[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [mode, setMode] = useState<BreakdownMode>('category');
 
   useEffect(() => {
-    listExpenses().then(setExpenses).catch((error: any) => {
+    getExpenseBreakdownByMonth().then(setBreakdownRows).catch((error: any) => {
       Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
     });
   }, []);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    listExpenses()
-      .then(setExpenses)
+    getExpenseBreakdownByMonth()
+      .then(setBreakdownRows)
       .catch((error: any) => {
         Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
       })
       .finally(() => setRefreshing(false));
   }, []);
 
-  const sections = useMemo(() => groupByMonth(expenses, mode), [expenses, mode]);
+  const sections = useMemo(() => buildMonthSections(breakdownRows, mode), [breakdownRows, mode]);
   const overallTotal = useMemo(() => sections.reduce((sum, s) => sum + s.total, 0), [sections]);
 
-  // Index into `sections`, which `groupByMonth` keeps in the newest-first order
-  // `listExpenses` already sorts by — so 0 is the latest month and it's the default.
+  // Index into `sections`, which `buildMonthSections` keeps in the RPC's newest-first month
+  // order — so 0 is the latest month and it's the default.
   const [chartMonthIndex, setChartMonthIndex] = useState(0);
   const lastMonthIndex = Math.max(sections.length - 1, 0);
   const selectedMonthIndex = Math.min(chartMonthIndex, lastMonthIndex);
