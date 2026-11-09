@@ -2,9 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CategoryDonutChart } from '../components/CategoryDonutChart';
-import { Icon } from '../components/Icon';
+import { Icon, IconName } from '../components/Icon';
+import { accountColor } from '../constants/accountColors';
 import { categoryLabel } from '../constants/categoryLabels';
-import { categoryColor, categoryTint } from '../constants/categoryColors';
+import { categoryColor } from '../constants/categoryColors';
 import { categoryIcon } from '../constants/categoryIcons';
 import { cardShadow } from '../constants/elevation';
 import { radius } from '../constants/radius';
@@ -17,9 +18,13 @@ import { Expense } from '../types';
 import { formatRupiah } from '../utils/format';
 import { localMonthKey } from '../utils/timestamp';
 
-interface CategoryRow {
-  categoryId: string;
-  categoryName?: string;
+type BreakdownMode = 'category' | 'account';
+
+interface BreakdownRow {
+  id: string;
+  label: string;
+  color: string;
+  icon?: IconName;
   amount: number;
 }
 
@@ -27,7 +32,7 @@ interface MonthSection {
   key: string;
   title: string;
   total: number;
-  data: CategoryRow[];
+  data: BreakdownRow[];
 }
 
 function monthLabel(monthKey: string): string {
@@ -35,10 +40,21 @@ function monthLabel(monthKey: string): string {
   return new Date(year, month - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 }
 
-function groupByMonth(expenses: Expense[]): MonthSection[] {
+// Classifies a single expense into the row it contributes to under the chosen breakdown
+// mode — a category (falling back to "Lainnya"/uncategorized) or a source account
+// (falling back to "Tanpa Akun" for untagged expenses, see ROADMAP's account-tag item).
+function rowFor(e: Expense, mode: BreakdownMode): Omit<BreakdownRow, 'amount'> {
+  if (mode === 'category') {
+    const name = e.category?.name;
+    return { id: e.category?.id ?? 'uncategorized', label: categoryLabel(name), color: categoryColor(name), icon: categoryIcon(name) };
+  }
+  return { id: e.account_id ?? 'untagged', label: e.account?.name ?? 'Tanpa Akun', color: accountColor(e.account_id) };
+}
+
+function groupByMonth(expenses: Expense[], mode: BreakdownMode): MonthSection[] {
   const sections: MonthSection[] = [];
   const indexByMonth = new Map<string, number>();
-  const categoryMaps = new Map<string, Map<string, CategoryRow>>();
+  const rowMaps = new Map<string, Map<string, BreakdownRow>>();
 
   for (const e of expenses) {
     // "Total Pengeluaran" is expense-only — income doesn't belong in a spend breakdown.
@@ -49,23 +65,23 @@ function groupByMonth(expenses: Expense[]): MonthSection[] {
       index = sections.length;
       indexByMonth.set(monthKey, index);
       sections.push({ key: monthKey, title: monthLabel(monthKey), total: 0, data: [] });
-      categoryMaps.set(monthKey, new Map());
+      rowMaps.set(monthKey, new Map());
     }
     const amount = Number(e.amount);
     sections[index].total += amount;
 
-    const catMap = categoryMaps.get(monthKey)!;
-    const catKey = e.category?.id ?? 'uncategorized';
-    const existing = catMap.get(catKey);
+    const row = rowFor(e, mode);
+    const rowMap = rowMaps.get(monthKey)!;
+    const existing = rowMap.get(row.id);
     if (existing) {
       existing.amount += amount;
     } else {
-      catMap.set(catKey, { categoryId: catKey, categoryName: e.category?.name, amount });
+      rowMap.set(row.id, { ...row, amount });
     }
   }
 
   for (const section of sections) {
-    section.data = Array.from(categoryMaps.get(section.key)!.values()).sort((a, b) => b.amount - a.amount);
+    section.data = Array.from(rowMaps.get(section.key)!.values()).sort((a, b) => b.amount - a.amount);
   }
 
   return sections;
@@ -79,6 +95,7 @@ export function SummaryScreen() {
   // it keeps its own unpaginated fetch here rather than sharing Home's bounded store state.
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [mode, setMode] = useState<BreakdownMode>('category');
 
   useEffect(() => {
     listExpenses().then(setExpenses).catch((error: any) => {
@@ -96,7 +113,7 @@ export function SummaryScreen() {
       .finally(() => setRefreshing(false));
   }, []);
 
-  const sections = useMemo(() => groupByMonth(expenses), [expenses]);
+  const sections = useMemo(() => groupByMonth(expenses, mode), [expenses, mode]);
   const overallTotal = useMemo(() => sections.reduce((sum, s) => sum + s.total, 0), [sections]);
 
   // Index into `sections`, which `groupByMonth` keeps in the newest-first order
@@ -125,6 +142,31 @@ export function SummaryScreen() {
         <Text style={[styles.totalLabel, { color: theme.textMuted }]}>Total pengeluaran</Text>
       </View>
 
+      <View style={[styles.modeToggle, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        {(
+          [
+            { value: 'category', label: 'Kategori' },
+            { value: 'account', label: 'Akun' },
+          ] as const
+        ).map(option => {
+          const active = mode === option.value;
+          return (
+            <TouchableOpacity
+              key={option.value}
+              onPress={() => setMode(option.value)}
+              accessibilityRole="button"
+              accessibilityLabel={option.label}
+              accessibilityState={{ selected: active }}
+              style={[styles.modeButton, { backgroundColor: active ? theme.primary : theme.surface }]}
+            >
+              <Text style={[styles.modeButtonText, { color: active ? theme.primaryText : theme.textMuted }]}>
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       {chartSection ? (
         <View style={[styles.chartCard, cardShadow, { backgroundColor: theme.surface }]}>
           <View style={styles.monthSelector}>
@@ -137,7 +179,9 @@ export function SummaryScreen() {
             >
               <Icon name="chevron-left" size={20} color={hasOlderMonth ? theme.text : theme.textDisabled} />
             </TouchableOpacity>
-            <Text style={[styles.chartHeading, { color: theme.text }]}>Kategori · {chartSection.title}</Text>
+            <Text style={[styles.chartHeading, { color: theme.text }]}>
+              {mode === 'category' ? 'Kategori' : 'Akun'} · {chartSection.title}
+            </Text>
             <TouchableOpacity
               onPress={handleNewerMonth}
               disabled={!hasNewerMonth}
@@ -150,7 +194,7 @@ export function SummaryScreen() {
           </View>
           <View style={styles.chartRow}>
             <CategoryDonutChart
-              data={chartSection.data}
+              data={chartSection.data.map(row => ({ key: row.id, amount: row.amount, color: row.color }))}
               total={chartSection.total}
               trackColor={theme.border}
               centerLabelColor={theme.textMuted}
@@ -158,10 +202,10 @@ export function SummaryScreen() {
             />
             <View style={styles.legend}>
               {chartSection.data.map(item => (
-                <View key={item.categoryId} style={styles.legendRow}>
-                  <View style={[styles.legendDot, { backgroundColor: categoryColor(item.categoryName) }]} />
+                <View key={item.id} style={styles.legendRow}>
+                  <View style={[styles.legendDot, { backgroundColor: item.color }]} />
                   <Text style={[styles.legendLabel, { color: theme.text }]} numberOfLines={1}>
-                    {categoryLabel(item.categoryName)}
+                    {item.label}
                   </Text>
                   <Text style={[styles.legendPercent, tabularNums, { color: theme.textMuted }]}>
                     {chartSection.total > 0 ? Math.round((item.amount / chartSection.total) * 100) : 0}%
@@ -175,15 +219,19 @@ export function SummaryScreen() {
 
       <SectionList
         sections={sections}
-        keyExtractor={(item, index) => `${item.categoryId}-${index}`}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
         renderItem={({ item }) => (
           <View style={styles.listRow}>
             <View style={styles.listLeft}>
-              <View style={[styles.iconBadge, { backgroundColor: categoryTint(item.categoryName) }]}>
-                <Icon name={categoryIcon(item.categoryName)} size={18} color={categoryColor(item.categoryName)} />
-              </View>
+              {item.icon ? (
+                <View style={[styles.iconBadge, { backgroundColor: `${item.color}26` }]}>
+                  <Icon name={item.icon} size={18} color={item.color} />
+                </View>
+              ) : (
+                <View style={[styles.iconBadge, { backgroundColor: item.color }]} />
+              )}
               <Text style={[styles.listLabel, { color: theme.text }]} numberOfLines={1}>
-                {categoryLabel(item.categoryName)}
+                {item.label}
               </Text>
             </View>
             <Text style={[styles.listAmount, tabularNums, { color: theme.textMuted }]}>
@@ -222,6 +270,25 @@ const styles = StyleSheet.create({
   },
   total: { ...typography.display },
   totalLabel: { ...typography.caption, marginTop: spacing['2xs'] },
+  modeToggle: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: 2,
+    marginBottom: spacing.md,
+  },
+  modeButton: {
+    paddingHorizontal: spacing.md,
+    minHeight: 36,
+    borderRadius: radius.md - 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
   chartCard: {
     borderRadius: radius.lg,
     padding: spacing.md,
