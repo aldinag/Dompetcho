@@ -19,7 +19,9 @@ export type IconName =
   | 'arrow-up'
   | 'arrow-down'
   | 'other'
-  | 'warning';
+  | 'warning'
+  | 'search'
+  | 'close';
 
 interface IconProps {
   name: IconName;
@@ -56,6 +58,8 @@ const PATHS: Record<IconName, string> = {
   'arrow-down': 'M12 5v14 M6 13l6 6 6-6',
   other: 'M6 12h.01 M12 12h.01 M18 12h.01',
   warning: 'M12 4 21 20 3 20 12 4Z M12 10v4 M12 16.7v.01',
+  search: 'M4 11a7 7 0 1 0 14 0 7 7 0 1 0-14 0Z M16.5 16.5 21 21',
+  close: 'M6 6l12 12 M18 6 6 18',
 };
 
 export function Icon({ name, size = 24, color = '#000000', strokeWidth = 2 }: IconProps) {

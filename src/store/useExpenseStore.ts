@@ -13,6 +13,10 @@ interface ExpenseState {
   expenses: Expense[];
   hasMoreExpenses: boolean;
   loadingMoreExpenses: boolean;
+  /** Committed (debounced) search text — empty string means no search filter. */
+  searchQuery: string;
+  categoryFilterId: string | null;
+  filtering: boolean;
   balance: number;
   monthIncome: number;
   monthExpense: number;
@@ -23,6 +27,10 @@ interface ExpenseState {
   loadInitial: () => Promise<void>;
   refresh: () => Promise<void>;
   loadMoreExpenses: () => Promise<void>;
+  /** Internal: re-fetches page one against the current filters; shared by the two setters below. */
+  applyFilters: () => Promise<void>;
+  setSearchQuery: (query: string) => Promise<void>;
+  setCategoryFilter: (categoryId: string | null) => Promise<void>;
   addExpenseOptimistic: (expense: Expense) => void;
   replaceExpense: (tempId: string, real: Expense) => void;
   removeExpense: (id: string) => void;
@@ -67,10 +75,27 @@ function applyDelta(
   return { balance, monthIncome, monthExpense };
 }
 
+// Builds the filter options every `listExpenses` call site shares, from whatever search
+// text/category filter is currently committed in the store.
+function currentFilterOptions(state: Pick<ExpenseState, 'searchQuery' | 'categoryFilterId'>) {
+  const noteSearch = state.searchQuery.trim();
+  return {
+    noteSearch: noteSearch === '' ? undefined : noteSearch,
+    categoryId: state.categoryFilterId ?? undefined,
+  };
+}
+
+// Bumped on every filter change so a slow, now-superseded fetch (e.g. the search debounce
+// firing just after a category chip tap) can detect it's stale and not clobber a newer result.
+let filterRequestId = 0;
+
 export const useExpenseStore = create<ExpenseState>((set, get) => ({
   expenses: [],
   hasMoreExpenses: false,
   loadingMoreExpenses: false,
+  searchQuery: '',
+  categoryFilterId: null,
+  filtering: false,
   balance: 0,
   monthIncome: 0,
   monthExpense: 0,
@@ -87,7 +112,7 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       // migration for a newer field that hasn't been run yet) must not discard the others —
       // that previously blanked the whole Home screen, including expenses that loaded fine.
       const [expensesResult, categoriesResult, accountsResult, totalsResult] = await Promise.allSettled([
-        listExpenses({ limit: EXPENSES_PAGE_SIZE }),
+        listExpenses({ limit: EXPENSES_PAGE_SIZE, ...currentFilterOptions(get()) }),
         listCategories(),
         listAccounts(),
         currentMonthTotals(),
@@ -118,7 +143,7 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     set({ refreshing: true });
     try {
       const [expenses, totals] = await Promise.all([
-        listExpenses({ limit: EXPENSES_PAGE_SIZE }),
+        listExpenses({ limit: EXPENSES_PAGE_SIZE, ...currentFilterOptions(get()) }),
         currentMonthTotals(),
       ]);
       set({
@@ -138,7 +163,11 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     if (!hasMoreExpenses || loadingMoreExpenses) return;
     set({ loadingMoreExpenses: true });
     try {
-      const nextPage = await listExpenses({ limit: EXPENSES_PAGE_SIZE, offset: expenses.length });
+      const nextPage = await listExpenses({
+        limit: EXPENSES_PAGE_SIZE,
+        offset: expenses.length,
+        ...currentFilterOptions(get()),
+      });
       set(state => ({
         expenses: [...state.expenses, ...nextPage],
         hasMoreExpenses: nextPage.length === EXPENSES_PAGE_SIZE,
@@ -146,6 +175,30 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     } finally {
       set({ loadingMoreExpenses: false });
     }
+  },
+
+  // Re-fetches page one against the newly-committed filter — shared by both setters so a
+  // search-text change and a category-chip tap behave the same way.
+  applyFilters: async () => {
+    const requestId = ++filterRequestId;
+    set({ filtering: true });
+    try {
+      const expenses = await listExpenses({ limit: EXPENSES_PAGE_SIZE, ...currentFilterOptions(get()) });
+      if (requestId !== filterRequestId) return; // superseded by a later filter change
+      set({ expenses, hasMoreExpenses: expenses.length === EXPENSES_PAGE_SIZE });
+    } finally {
+      if (requestId === filterRequestId) set({ filtering: false });
+    }
+  },
+
+  setSearchQuery: async query => {
+    set({ searchQuery: query });
+    await get().applyFilters();
+  },
+
+  setCategoryFilter: async categoryId => {
+    set({ categoryFilterId: categoryId });
+    await get().applyFilters();
   },
 
   addExpenseOptimistic: expense =>
@@ -187,6 +240,9 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       expenses: [],
       hasMoreExpenses: false,
       loadingMoreExpenses: false,
+      searchQuery: '',
+      categoryFilterId: null,
+      filtering: false,
       balance: 0,
       monthIncome: 0,
       monthExpense: 0,
