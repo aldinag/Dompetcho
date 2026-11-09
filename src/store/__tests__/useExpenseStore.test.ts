@@ -49,6 +49,9 @@ beforeEach(() => {
     expenses: [],
     hasMoreExpenses: false,
     loadingMoreExpenses: false,
+    searchQuery: '',
+    categoryFilterId: null,
+    filtering: false,
     balance: 0,
     monthIncome: 0,
     monthExpense: 0,
@@ -132,6 +135,83 @@ describe('useExpenseStore.loadMoreExpenses', () => {
     await useExpenseStore.getState().loadMoreExpenses();
 
     expect(mockListExpenses).not.toHaveBeenCalled();
+  });
+});
+
+describe('useExpenseStore search/category filtering', () => {
+  it('re-fetches page one with the search text as a server-side filter', async () => {
+    useExpenseStore.setState({ expenses: [FAKE_EXPENSE], hasMoreExpenses: true });
+    const matches = [expense({ id: 'e2', note: 'kopi pagi' })];
+    mockListExpenses.mockResolvedValue(matches);
+
+    await useExpenseStore.getState().setSearchQuery('kopi');
+
+    expect(mockListExpenses).toHaveBeenCalledWith({ limit: EXPENSES_PAGE_SIZE, noteSearch: 'kopi' });
+    const state = useExpenseStore.getState();
+    expect(state.expenses).toEqual(matches);
+    expect(state.searchQuery).toBe('kopi');
+    expect(state.filtering).toBe(false);
+  });
+
+  it('treats a whitespace-only search as no filter', async () => {
+    mockListExpenses.mockResolvedValue([]);
+
+    await useExpenseStore.getState().setSearchQuery('   ');
+
+    expect(mockListExpenses).toHaveBeenCalledWith({ limit: EXPENSES_PAGE_SIZE });
+  });
+
+  it('re-fetches page one filtered by category id', async () => {
+    mockListExpenses.mockResolvedValue([FAKE_EXPENSE]);
+
+    await useExpenseStore.getState().setCategoryFilter('c1');
+
+    expect(mockListExpenses).toHaveBeenCalledWith({ limit: EXPENSES_PAGE_SIZE, categoryId: 'c1' });
+    expect(useExpenseStore.getState().categoryFilterId).toBe('c1');
+  });
+
+  it('clearing the category filter goes back to an unfiltered fetch', async () => {
+    useExpenseStore.setState({ categoryFilterId: 'c1' });
+    mockListExpenses.mockResolvedValue([]);
+
+    await useExpenseStore.getState().setCategoryFilter(null);
+
+    expect(mockListExpenses).toHaveBeenCalledWith({ limit: EXPENSES_PAGE_SIZE });
+    expect(useExpenseStore.getState().categoryFilterId).toBeNull();
+  });
+
+  it('combines a search query and a category filter in the same request', async () => {
+    useExpenseStore.setState({ categoryFilterId: 'c1' });
+    mockListExpenses.mockResolvedValue([]);
+
+    await useExpenseStore.getState().setSearchQuery('kopi');
+
+    expect(mockListExpenses).toHaveBeenCalledWith({
+      limit: EXPENSES_PAGE_SIZE,
+      noteSearch: 'kopi',
+      categoryId: 'c1',
+    });
+  });
+
+  it('discards a stale filter response that resolves after a newer filter change', async () => {
+    let resolveFirst: (value: Expense[]) => void;
+    mockListExpenses.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          resolveFirst = resolve;
+        }),
+    );
+    const firstCall = useExpenseStore.getState().setSearchQuery('kopi');
+
+    const secondResult = [expense({ id: 'e3', note: 'teh' })];
+    mockListExpenses.mockResolvedValueOnce(secondResult);
+    await useExpenseStore.getState().setSearchQuery('teh');
+
+    // The slow first request finally resolves after the second one already won.
+    resolveFirst!([expense({ id: 'e-stale', note: 'kopi' })]);
+    await firstCall;
+
+    expect(useExpenseStore.getState().expenses).toEqual(secondResult);
   });
 });
 

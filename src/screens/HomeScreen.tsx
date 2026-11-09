@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -9,10 +9,12 @@ import {
   SectionList,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CategoryFilterBar } from '../components/CategoryFilterBar';
 import { EmptyState } from '../components/EmptyState';
 import { ExpenseListItem } from '../components/ExpenseListItem';
 import { Icon } from '../components/Icon';
@@ -68,6 +70,8 @@ export function HomeScreen() {
   const expenses = useExpenseStore(state => state.expenses);
   const hasMoreExpenses = useExpenseStore(state => state.hasMoreExpenses);
   const loadingMoreExpenses = useExpenseStore(state => state.loadingMoreExpenses);
+  const categories = useExpenseStore(state => state.categories);
+  const categoryFilterId = useExpenseStore(state => state.categoryFilterId);
   const balance = useExpenseStore(state => state.balance);
   const monthIncome = useExpenseStore(state => state.monthIncome);
   const monthExpense = useExpenseStore(state => state.monthExpense);
@@ -75,12 +79,44 @@ export function HomeScreen() {
   const loadInitial = useExpenseStore(state => state.loadInitial);
   const refresh = useExpenseStore(state => state.refresh);
   const loadMoreExpenses = useExpenseStore(state => state.loadMoreExpenses);
+  const setSearchQuery = useExpenseStore(state => state.setSearchQuery);
+  const setCategoryFilter = useExpenseStore(state => state.setCategoryFilter);
 
   useEffect(() => {
     loadInitial().catch((error: any) => {
       Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
     });
   }, [loadInitial]);
+
+  // The TextInput is bound to this local, un-debounced value so typing feels instant; the
+  // store (and the server-side `ilike` query it triggers) only hears about it 350ms after
+  // the user stops typing. Skips its own first run so mounting doesn't re-fetch what
+  // `loadInitial` just fetched.
+  const [searchInput, setSearchInput] = useState('');
+  const isFirstSearchEffect = useRef(true);
+  useEffect(() => {
+    if (isFirstSearchEffect.current) {
+      isFirstSearchEffect.current = false;
+      return;
+    }
+    const handle = setTimeout(() => {
+      setSearchQuery(searchInput).catch((error: any) => {
+        Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
+      });
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [searchInput, setSearchQuery]);
+
+  const handleSelectCategoryFilter = useCallback(
+    (categoryId: string | null) => {
+      setCategoryFilter(categoryId).catch((error: any) => {
+        Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
+      });
+    },
+    [setCategoryFilter],
+  );
+
+  const isFiltering = searchInput.trim() !== '' || categoryFilterId !== null;
 
   const handleRefresh = useCallback(() => {
     refresh().catch((error: any) => {
@@ -154,6 +190,31 @@ export function HomeScreen() {
 
       <Text style={[styles.historyHeading, { color: theme.text }]}>Transaksi Terakhir</Text>
 
+      <View style={[styles.searchRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Icon name="search" size={18} color={theme.textMuted} />
+        <TextInput
+          style={[styles.searchInput, { color: theme.text }]}
+          value={searchInput}
+          onChangeText={setSearchInput}
+          placeholder="Cari catatan..."
+          placeholderTextColor={theme.textMuted}
+          returnKeyType="search"
+          accessibilityLabel="Cari transaksi berdasarkan catatan"
+        />
+        {searchInput.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setSearchInput('')}
+            accessibilityRole="button"
+            accessibilityLabel="Hapus pencarian"
+            hitSlop={8}
+          >
+            <Icon name="close" size={16} color={theme.textMuted} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <CategoryFilterBar categories={categories} selectedId={categoryFilterId} onSelect={handleSelectCategoryFilter} />
+
       <SectionList
         sections={sections}
         keyExtractor={item => item.id}
@@ -173,7 +234,17 @@ export function HomeScreen() {
           </View>
         )}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.primary} />}
-        ListEmptyComponent={<EmptyState />}
+        ListEmptyComponent={
+          isFiltering ? (
+            <EmptyState
+              icon={<Icon name="search" size={40} color={theme.textMuted} />}
+              title="Tidak ada hasil"
+              body="Coba kata kunci atau kategori lain."
+            />
+          ) : (
+            <EmptyState />
+          )
+        }
         ListFooterComponent={
           hasMoreExpenses ? (
             <TouchableOpacity
@@ -316,6 +387,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
     paddingBottom: spacing.xs,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    minHeight: 44,
+    borderRadius: radius.md,
+    borderWidth: 1,
+  },
+  searchInput: {
+    flex: 1,
+    ...typography.body,
+    paddingVertical: 0,
   },
   sectionHeader: {
     flexDirection: 'row',

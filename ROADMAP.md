@@ -181,7 +181,7 @@ touch" above.
       color distinct from the category palette). This is still just a breakdown — no
       per-account balance, no effect on Home's Sisa Saldo (see non-goals).
 
-- [ ] **Search and filter the expense list.** Add a search field on Home that filters by note
+- [x] **Search and filter the expense list.** Add a search field on Home that filters by note
       text, plus a category filter. Because Home is paginated, this must be a server-side
       filter (`ilike` on `note`, `eq` on `category_id` via `listExpenses`'s options), not a
       client-side filter over the loaded page — otherwise results silently miss older rows.
