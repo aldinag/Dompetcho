@@ -168,7 +168,7 @@ export function SummaryScreen() {
         renderSectionHeader={({ section }) => (
           <View style={[styles.sectionHeader, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>{section.title}</Text>
-            <Text style={[styles.sectionTotal, tabularNums, { color: theme.danger }]}>
+            <Text style={[styles.sectionTotal, tabularNums, { color: theme.textMuted }]}>
               {formatRupiah(section.total)}
             </Text>
           </View>

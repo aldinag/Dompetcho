@@ -70,7 +70,7 @@ export function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background, paddingBottom: insets.bottom }]}>
-      <View style={[styles.header, { backgroundColor: theme.primary, paddingTop: insets.top + spacing.sm }]}>
+      <View style={[styles.header, { backgroundColor: theme.hero, paddingTop: insets.top + spacing.sm }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -78,21 +78,21 @@ export function ProfileScreen() {
           accessibilityLabel="Kembali"
         >
           <View style={styles.backChevron}>
-            <Icon name="chevron-right" size={22} color="#FFFFFF" strokeWidth={2.5} />
+            <Icon name="chevron-right" size={22} color={theme.heroText} strokeWidth={2.5} />
           </View>
         </TouchableOpacity>
 
         {user.avatar_url ? (
           <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
         ) : (
-          <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: theme.primaryText }]}>
-            <Text style={[styles.avatarInitial, { color: theme.primary }]}>
+          <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: theme.heroText }]}>
+            <Text style={[styles.avatarInitial, { color: theme.hero }]}>
               {(user.full_name ?? user.email ?? '?').charAt(0).toUpperCase()}
             </Text>
           </View>
         )}
-        <Text style={styles.name}>{user.full_name ?? 'Pengguna Dompetcho'}</Text>
-        {!!user.email && <Text style={styles.email}>{user.email}</Text>}
+        <Text style={[styles.name, { color: theme.heroText }]}>{user.full_name ?? 'Pengguna Dompetcho'}</Text>
+        {!!user.email && <Text style={[styles.email, { color: theme.heroTextMuted }]}>{user.email}</Text>}
       </View>
 
       <View style={styles.body}>
@@ -189,15 +189,13 @@ const styles = StyleSheet.create({
   },
   avatarInitial: {
     fontSize: 32,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   name: {
     ...typography.h1,
-    color: '#FFFFFF',
   },
   email: {
     ...typography.caption,
-    color: 'rgba(255,255,255,0.8)',
     marginTop: spacing['2xs'],
   },
   body: {

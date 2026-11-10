@@ -18,22 +18,22 @@ export function OnboardingScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.primary }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.hero }]}>
       <View style={styles.content}>
         <Image source={require('../assets/icon.png')} style={styles.logo} />
-        <Text style={styles.headline}>Catat Pengeluaran{'\n'}Lebih Cerdas</Text>
-        <Text style={styles.body}>
+        <Text style={[styles.headline, { color: theme.heroText }]}>Catat Pengeluaran{'\n'}Lebih Cerdas</Text>
+        <Text style={[styles.body, { color: theme.heroTextMuted }]}>
           Bagikan struk transfer Mandiri, dan Dompetcho langsung mencatatnya untukmu —
           nyaris tanpa mengetik.
         </Text>
       </View>
       <TouchableOpacity
-        style={[styles.button, { backgroundColor: theme.primaryText }]}
+        style={[styles.button, { backgroundColor: theme.heroText }]}
         onPress={handleGetStarted}
         accessibilityRole="button"
         accessibilityLabel="Mulai"
       >
-        <Text style={[styles.buttonText, { color: theme.primary }]}>Mulai</Text>
+        <Text style={[styles.buttonText, { color: theme.hero }]}>Mulai</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -61,13 +61,11 @@ const styles = StyleSheet.create({
     ...typography.display,
     fontSize: 28,
     lineHeight: 34,
-    color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: spacing.sm,
   },
   body: {
     ...typography.body,
-    color: 'rgba(255,255,255,0.85)',
     textAlign: 'center',
     paddingHorizontal: spacing.md,
   },
