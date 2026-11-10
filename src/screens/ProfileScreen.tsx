@@ -1,7 +1,17 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React from 'react';
-import { ActivityIndicator, Alert, Image, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '../components/Icon';
 import { APP_VERSION } from '../config/appInfo';
@@ -69,7 +79,10 @@ export function ProfileScreen() {
   if (!user) return null;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background, paddingBottom: insets.bottom }]}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      contentContainerStyle={{ paddingBottom: insets.bottom }}
+    >
       <View style={[styles.header, { backgroundColor: theme.hero, paddingTop: insets.top + spacing.sm }]}>
         <TouchableOpacity
           style={styles.backButton}
@@ -156,7 +169,7 @@ export function ProfileScreen() {
           )}
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 

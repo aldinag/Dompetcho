@@ -104,8 +104,8 @@ export function HomeScreen() {
 
   const sections = useMemo(() => groupByDay(expenses), [expenses]);
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+  const listHeader = (
+    <>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <TouchableOpacity
           style={styles.greetingRow}
@@ -198,7 +198,11 @@ export function HomeScreen() {
       </View>
 
       <CategoryFilterBar categories={categories} selectedId={categoryFilterId} onSelect={handleSelectCategoryFilter} />
+    </>
+  );
 
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <SectionList
         sections={sections}
         keyExtractor={item => item.id}
@@ -243,6 +247,8 @@ export function HomeScreen() {
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
         contentContainerStyle={[styles.listContent, sections.length === 0 && styles.emptyContent]}
+        ListHeaderComponent={listHeader}
+        keyboardShouldPersistTaps="handled"
         stickySectionHeadersEnabled
       />
     </View>
