@@ -59,8 +59,8 @@ export function SummaryScreen() {
     setChartMonthIndex(i => Math.max(i - 1, 0));
   }, []);
 
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+  const listHeader = (
+    <>
       <Text style={[styles.heading, { color: theme.text }]}>Ringkasan</Text>
 
       <View style={[styles.totalCard, cardShadow, { backgroundColor: theme.surface }]}>
@@ -142,7 +142,11 @@ export function SummaryScreen() {
           </View>
         </View>
       ) : null}
+    </>
+  );
 
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <SectionList
         sections={sections}
         keyExtractor={(item, index) => `${item.id}-${index}`}
@@ -178,6 +182,8 @@ export function SummaryScreen() {
           <Text style={[styles.empty, { color: theme.textMuted }]}>Belum ada pengeluaran.</Text>
         }
         contentContainerStyle={[styles.listContent, sections.length === 0 && styles.emptyContent]}
+        ListHeaderComponent={listHeader}
+        keyboardShouldPersistTaps="handled"
         stickySectionHeadersEnabled
       />
     </SafeAreaView>
