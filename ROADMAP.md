@@ -222,7 +222,7 @@ touch" above.
       flag the manual SQL step in the PR. Keep the existing unit tests' intent (balance,
       month totals, per-month sums) passing against the new shape.
 
-- [ ] **Extract and test the grouping helpers.** `groupByDay` (HomeScreen) and `groupByMonth`
+- [x] **Extract and test the grouping helpers.** `groupByDay` (HomeScreen) and `groupByMonth`
       (SummaryScreen) hold real logic — local-time day/month keys, income vs expense signs,
       category roll-ups — but live inside screen files with no tests. Move them to
       `src/utils/` (e.g. `groupExpenses.ts`) and cover the edge cases: a late-night expense
