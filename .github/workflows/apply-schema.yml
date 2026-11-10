@@ -5,17 +5,34 @@ name: Apply Supabase schema
 # erroring with "Could not find the function ... in the schema cache" until someone pastes the
 # SQL into the dashboard by hand.
 #
-# MANUAL ONLY (Actions tab > Apply Supabase schema > Run workflow) and only from `dev`/`main`.
-# It is deliberately not triggered by pushes: this edits the production database, and a
-# schema.sql change should be read by a human before it's applied. schema.sql is written to be
-# safely re-runnable (`if not exists`, guarded one-time migrations, drop-and-recreate of
-# policies/functions), and the whole file is sent as one request so Postgres runs it as a single
-# transaction — a failure part-way rolls everything back rather than leaving a half-applied schema.
+# Runs automatically when a push to `dev` changes supabase/schema.sql (i.e. when a merged PR
+# touched it), and on demand from the Actions tab (Run workflow, `dev`/`main` only).
+#
+# Because this edits the production database with whatever SQL just merged — including SQL
+# written by the daily agent — the automatic run has a guard: if the change ADDS a destructive
+# statement (drop table/column/schema, truncate, a data `delete from`, or an `alter column ...
+# type`), it fails and applies nothing, and a human has to read the change and run the workflow
+# by hand. The manual run skips the guard, since a person chose to run it. Ordinary additions
+# (new tables/columns/functions/policies, `drop ... if exists` on policies/functions/triggers)
+# apply unattended.
+#
+# schema.sql is written to be safely re-runnable (`if not exists`, guarded one-time migrations,
+# drop-and-recreate of policies/functions), and the whole file is sent as one request so Postgres
+# runs it as a single transaction — a failure part-way rolls everything back rather than leaving
+# a half-applied schema.
 #
 # Uses the same secrets as keep-db-alive.yml: DOMPETCHO_ENV_TS (to find the project ref) and
 # SUPABASE_ACCESS_TOKEN (Management API personal access token).
 on:
+  push:
+    branches: [dev]
+    paths: ['supabase/schema.sql']
   workflow_dispatch:
+
+# One run at a time, and never cancel one mid-flight: a half-sent migration is worse than a queue.
+concurrency:
+  group: apply-supabase-schema
+  cancel-in-progress: false
 
 jobs:
   apply:
@@ -25,6 +42,27 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Automatic runs only — see the header. Looks at lines this push ADDED to schema.sql.
+      - name: Refuse unattended destructive changes
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE=$(git rev-parse HEAD~1)
+          fi
+          ADDED=$(git diff "$BEFORE" HEAD -U0 -- supabase/schema.sql | grep -E '^\+' | grep -vE '^\+\+\+' || true)
+          # Strip SQL line comments so a comment that merely mentions "truncate" doesn't trip it.
+          HITS=$(printf '%s\n' "$ADDED" | sed -E 's/^\+//; s/--.*$//' | grep -iE 'drop[[:space:]]+(table|column|schema)|truncate|delete[[:space:]]+from|alter[[:space:]]+column[[:space:]]+[^ ]+[[:space:]]+(set data[[:space:]]+)?type' || true)
+          if [ -n "$HITS" ]; then
+            echo "::error::This change to supabase/schema.sql adds a destructive statement, so it was NOT applied automatically. Review it, then run this workflow by hand (Actions > Apply Supabase schema > Run workflow)."
+            printf '%s\n' "$HITS"
+            exit 1
+          fi
+          echo "No destructive statements added; applying."
 
       - name: Run schema.sql against the Supabase project
         env:
