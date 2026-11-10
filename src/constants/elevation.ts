@@ -16,18 +16,20 @@ export const cardShadow = Platform.select({
   default: {},
 });
 
-// A stronger, visible shadow for a card that floats over a hard color transition (e.g. the
-// Home balance card straddling the navy header and the plain background) — cardShadow's
-// 0.08 opacity is tuned for card-on-white contexts and reads as basically invisible here.
-export const floatingCardShadow = Platform.select({
-  ios: {
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-  },
-  android: {
-    elevation: 10,
-  },
-  default: {},
-});
+// Soft, color-tinted shadow for a colored hero card: a pure black shadow under a blue card
+// reads as a dirty smudge, so the shadow takes the card's own hue and spreads wide and faint.
+export function tintedShadow(color: string) {
+  return Platform.select({
+    ios: {
+      shadowColor: color,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.3,
+      shadowRadius: 16,
+    },
+    android: {
+      elevation: 6,
+      shadowColor: color,
+    },
+    default: {},
+  });
+}

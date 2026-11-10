@@ -4,6 +4,7 @@ import { Icon } from './Icon';
 import { categoryIcon } from '../constants/categoryIcons';
 import { categoryLabel } from '../constants/categoryLabels';
 import { spacing } from '../constants/spacing';
+import { typography } from '../constants/typography';
 import { useTheme } from '../hooks/useTheme';
 import { Category } from '../types';
 
@@ -21,7 +22,12 @@ export function CategoryFilterBar({ categories, selectedId, onSelect }: Category
   if (categories.length === 0) return null;
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.container}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.scroll}
+      contentContainerStyle={styles.container}
+    >
       <TouchableOpacity
         onPress={() => onSelect(null)}
         accessibilityRole="button"
@@ -35,7 +41,9 @@ export function CategoryFilterBar({ categories, selectedId, onSelect }: Category
           },
         ]}
       >
-        <Text style={[styles.label, { color: selectedId === null ? theme.primaryText : theme.text }]}>Semua</Text>
+        <Text style={[styles.label, selectedId === null && styles.labelSelected, { color: selectedId === null ? theme.primaryText : theme.text }]}>
+          Semua
+        </Text>
       </TouchableOpacity>
 
       {categories.map(category => {
@@ -56,7 +64,7 @@ export function CategoryFilterBar({ categories, selectedId, onSelect }: Category
             ]}
           >
             <Icon name={categoryIcon(category.name)} size={16} color={selected ? theme.primaryText : theme.text} />
-            <Text style={[styles.label, { color: selected ? theme.primaryText : theme.text }]}>
+            <Text style={[styles.label, selected && styles.labelSelected, { color: selected ? theme.primaryText : theme.text }]}>
               {categoryLabel(category.name)}
             </Text>
           </TouchableOpacity>
@@ -67,8 +75,16 @@ export function CategoryFilterBar({ categories, selectedId, onSelect }: Category
 }
 
 const styles = StyleSheet.create({
+  // A horizontal ScrollView defaults to flexGrow/flexShrink 1, so beside a flex:1 list (Home's
+  // SectionList) the two split the height and the chips got squashed and cut off. Pin it to its
+  // content height.
+  scroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+  },
   container: {
     paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
     gap: spacing.xs,
   },
   chip: {
@@ -78,11 +94,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     borderRadius: 20,
     borderWidth: 1,
-    marginRight: spacing.xs,
-    minHeight: 44,
+    minHeight: 40,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
+    ...typography.body,
+  },
+  labelSelected: {
+    fontWeight: '600',
   },
 });

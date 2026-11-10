@@ -8,15 +8,21 @@ export interface Theme {
   textMuted: string;
   textDisabled: string;
   primary: string;
-  primaryDark: string;
   primaryText: string;
   accent: string;
+  // Color-blocked "hero" surfaces (Home's balance card, Profile's header, Onboarding). A
+  // deep blue in BOTH modes with white text on top (≈9:1 contrast) — unlike `primary`, which is
+  // a light tint in dark mode (right for buttons/chips, wrong as a surface behind white text).
+  hero: string;
+  heroText: string;
+  heroTextMuted: string;
+  heroOverlay: string; // soft translucent fill for chips/pills sitting on the hero surface
   danger: string;
   success: string;
   warning: string;
   info: string;
-  // For screens whose top section is colored with `primary` (Home, Profile) rather than
-  // the plain `background` — the correct StatusBar style is the opposite of the app default.
+  // For screens whose top section is the dark `hero` blue (Profile) rather than the plain
+  // `background` — the correct StatusBar style is the opposite of the app default.
   statusBarDefault: StatusBarVariant;
   statusBarOnPrimary: StatusBarVariant;
 }
@@ -30,9 +36,12 @@ export const lightTheme: Theme = {
   textMuted: '#6B7280',
   textDisabled: '#9CA3AF',
   primary: '#1E3A8A',
-  primaryDark: '#1A3175', // primary − ~15% (toward black) — solid "card on primary" tone, darker than the header
   primaryText: '#FFFFFF',
   accent: '#16A34A', // bold brand green — center "Add" tab button only
+  hero: '#1E3A8A',
+  heroText: '#FFFFFF',
+  heroTextMuted: 'rgba(255,255,255,0.72)',
+  heroOverlay: 'rgba(255,255,255,0.12)',
   danger: '#EF4444',
   success: '#22C55E',
   warning: '#F59E0B',
@@ -49,13 +58,16 @@ export const darkTheme: Theme = {
   textMuted: '#9CA3AF',
   textDisabled: '#6B7280',
   primary: '#60A5FA',
-  primaryDark: '#528CD5', // primary − ~15% (toward black) — solid "card on primary" tone, darker than the header
   primaryText: '#0B1220', // dark text — primary is a light tint in dark mode, needs a dark foreground for contrast
   accent: '#22C55E',
+  hero: '#1E40AF',
+  heroText: '#FFFFFF',
+  heroTextMuted: 'rgba(255,255,255,0.72)',
+  heroOverlay: 'rgba(255,255,255,0.12)',
   danger: '#EF4444',
   success: '#22C55E',
   warning: '#F59E0B',
   info: '#3B82F6',
   statusBarDefault: 'light-content',
-  statusBarOnPrimary: 'dark-content',
+  statusBarOnPrimary: 'light-content', // hero is dark blue in dark mode too
 };

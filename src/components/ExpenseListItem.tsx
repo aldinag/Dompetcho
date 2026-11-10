@@ -21,7 +21,9 @@ export function ExpenseListItem({ expense }: { expense: Expense }) {
   const isReceipt = expense.source === 'receipt_ocr';
   const isIncome = expense.type === 'income';
   const categoryName = expense.category?.name;
-  const amountColor = isIncome ? theme.success : theme.danger;
+  // Green for money in; spending stays the neutral text color (its '-' sign already says what
+  // it is) — red on every row makes the list shout and drowns out the one thing that should.
+  const amountColor = isIncome ? theme.success : theme.text;
 
   return (
     <TouchableOpacity
@@ -47,7 +49,7 @@ export function ExpenseListItem({ expense }: { expense: Expense }) {
         <Text style={[styles.amount, tabularNums, { color: amountColor }]}>
           {isIncome ? '+' : '-'} {formatRupiah(expense.amount)}
         </Text>
-        <View style={[styles.badge, { backgroundColor: theme.background }]}>
+        <View style={styles.badge}>
           <Icon name={isReceipt ? 'camera' : 'pencil'} size={12} color={theme.textMuted} strokeWidth={2.2} />
           <Text style={[styles.badgeText, { color: theme.textMuted }]}>{isReceipt ? 'Struk' : 'Manual'}</Text>
         </View>
@@ -81,26 +83,21 @@ const styles = StyleSheet.create({
   },
   note: {
     ...typography.caption,
-    marginTop: 2,
+    marginTop: spacing['2xs'],
   },
   right: {
     alignItems: 'flex-end',
   },
   amount: {
     ...typography.h2,
-    fontWeight: '700',
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
+    gap: spacing['2xs'],
+    marginTop: spacing['2xs'],
   },
   badgeText: {
     ...typography.caption,
-    fontWeight: '600',
   },
 });

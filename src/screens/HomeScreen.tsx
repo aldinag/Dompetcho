@@ -18,7 +18,7 @@ import { CategoryFilterBar } from '../components/CategoryFilterBar';
 import { EmptyState } from '../components/EmptyState';
 import { ExpenseListItem } from '../components/ExpenseListItem';
 import { Icon } from '../components/Icon';
-import { floatingCardShadow } from '../constants/elevation';
+import { tintedShadow } from '../constants/elevation';
 import { radius } from '../constants/radius';
 import { spacing } from '../constants/spacing';
 import { tabularNums, typography } from '../constants/typography';
@@ -36,7 +36,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export function HomeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  useStatusBarStyle('onPrimary');
+  useStatusBarStyle('default');
   const navigation = useNavigation<Nav>();
   const user = useAuthStore(state => state.user);
   const expenses = useExpenseStore(state => state.expenses);
@@ -106,7 +106,7 @@ export function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.primary, paddingTop: insets.top + spacing.sm }]}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <TouchableOpacity
           style={styles.greetingRow}
           onPress={() => navigation.navigate('Profile')}
@@ -114,16 +114,16 @@ export function HomeScreen() {
           accessibilityLabel={`Buka profil ${user?.full_name ?? ''}`}
         >
           <View style={styles.greetingText}>
-            <Text style={styles.greeting}>{greeting()},</Text>
-            <Text style={styles.name} numberOfLines={1}>
+            <Text style={[styles.greeting, { color: theme.textMuted }]}>{greeting()},</Text>
+            <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
               {user?.full_name ?? user?.email ?? 'Pengguna'}
             </Text>
           </View>
           {user?.avatar_url ? (
             <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
           ) : (
-            <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: theme.primaryText }]}>
-              <Text style={[styles.avatarInitial, { color: theme.primary }]}>
+            <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: theme.hero }]}>
+              <Text style={[styles.avatarInitial, { color: theme.heroText }]}>
                 {(user?.full_name ?? user?.email ?? '?').charAt(0).toUpperCase()}
               </Text>
             </View>
@@ -131,31 +131,43 @@ export function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.balanceCard, floatingCardShadow, { backgroundColor: theme.primaryDark }]}>
-        <Text style={styles.balanceLabel}>Sisa Saldo</Text>
-        <Text style={[styles.balanceAmount, tabularNums]}>{formatRupiah(balance)}</Text>
+      <View style={[styles.balanceCard, tintedShadow(theme.hero), { backgroundColor: theme.hero }]}>
+        <Text style={[styles.balanceLabel, { color: theme.heroTextMuted }]}>Sisa Saldo</Text>
+        <Text
+          style={[styles.balanceAmount, tabularNums, { color: theme.heroText }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {formatRupiah(balance)}
+        </Text>
 
-        <View style={styles.divider} />
-
+        <Text style={[styles.periodLabel, { color: theme.heroTextMuted }]}>Bulan ini</Text>
         <View style={styles.splitRow}>
-          <View style={styles.splitItem}>
-            <View style={styles.splitIconBadge}>
-              <Icon name="arrow-up" size={16} color="#FFFFFF" />
+          <View style={[styles.splitPill, { backgroundColor: theme.heroOverlay }]}>
+            <View style={styles.splitLabelRow}>
+              <Icon name="arrow-up" size={14} color={theme.heroText} />
+              <Text style={[styles.splitLabel, { color: theme.heroTextMuted }]}>Pemasukan</Text>
             </View>
-            <View style={styles.splitTextGroup}>
-              <Text style={styles.splitLabel}>Pemasukan Bulan Ini</Text>
-              <Text style={[styles.splitAmount, tabularNums]}>{formatRupiah(monthIncome)}</Text>
-            </View>
+            <Text
+              style={[styles.splitAmount, tabularNums, { color: theme.heroText }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {formatRupiah(monthIncome)}
+            </Text>
           </View>
-          <View style={styles.splitDivider} />
-          <View style={styles.splitItem}>
-            <View style={styles.splitIconBadge}>
-              <Icon name="arrow-down" size={16} color="#FFFFFF" />
+          <View style={[styles.splitPill, { backgroundColor: theme.heroOverlay }]}>
+            <View style={styles.splitLabelRow}>
+              <Icon name="arrow-down" size={14} color={theme.heroText} />
+              <Text style={[styles.splitLabel, { color: theme.heroTextMuted }]}>Pengeluaran</Text>
             </View>
-            <View style={styles.splitTextGroup}>
-              <Text style={styles.splitLabel}>Pengeluaran Bulan Ini</Text>
-              <Text style={[styles.splitAmount, tabularNums]}>{formatRupiah(monthExpense)}</Text>
-            </View>
+            <Text
+              style={[styles.splitAmount, tabularNums, { color: theme.heroText }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {formatRupiah(monthExpense)}
+            </Text>
           </View>
         </View>
       </View>
@@ -194,13 +206,7 @@ export function HomeScreen() {
         renderSectionHeader={({ section }) => (
           <View style={[styles.sectionHeader, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>{section.title}</Text>
-            <Text
-              style={[
-                styles.sectionSubtotal,
-                tabularNums,
-                { color: section.subtotal >= 0 ? theme.success : theme.danger },
-              ]}
-            >
+            <Text style={[styles.sectionSubtotal, tabularNums, { color: theme.textMuted }]}>
               {section.subtotal >= 0 ? '+' : '-'} {formatRupiah(Math.abs(section.subtotal))}
             </Text>
           </View>
@@ -236,7 +242,7 @@ export function HomeScreen() {
         }
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
-        contentContainerStyle={sections.length === 0 && styles.emptyContent}
+        contentContainerStyle={[styles.listContent, sections.length === 0 && styles.emptyContent]}
         stickySectionHeadersEnabled
       />
     </View>
@@ -249,13 +255,6 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    // Matches balanceCard's negative marginTop below — this padding is the space the
-    // card's top half sits over, so exactly half the card overlaps the color and half
-    // sits on the plain background beneath.
-    paddingBottom: 76,
-    borderBottomLeftRadius: radius.lg,
-    borderBottomRightRadius: radius.lg,
   },
   greetingRow: {
     flexDirection: 'row',
@@ -268,11 +267,9 @@ const styles = StyleSheet.create({
   },
   greeting: {
     ...typography.caption,
-    color: 'rgba(255,255,255,0.8)',
   },
   name: {
     ...typography.h1,
-    color: '#FFFFFF',
   },
   avatar: {
     width: 44,
@@ -285,80 +282,59 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarInitial: {
-    fontSize: 18,
-    fontWeight: '700',
+    ...typography.h2,
   },
+  // One focal element: a single blue card on the plain background. Padding follows the 4/8
+  // grid; the balance is the largest thing on screen, its label and the split pills below it
+  // step down in size and opacity.
   balanceCard: {
-    // Pulled up by roughly half its own height so the header's rounded edge cuts through
-    // its middle — it straddles the colored header and the plain background below, rather
-    // than sitting fully inside either (matches the reference's floating-card treatment).
     marginHorizontal: spacing.md,
-    marginTop: -76,
-    borderRadius: radius.lg,
-    padding: spacing.md,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
   },
   balanceLabel: {
     ...typography.caption,
-    color: 'rgba(255,255,255,0.75)',
-    fontWeight: '700',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   balanceAmount: {
     ...typography.display,
-    color: '#FFFFFF',
     fontSize: 32,
-    lineHeight: 38,
+    lineHeight: 40,
     marginTop: spacing['2xs'],
   },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    marginVertical: spacing.sm,
+  periodLabel: {
+    ...typography.caption,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xs,
   },
   splitRow: {
     flexDirection: 'row',
+    gap: spacing.xs,
   },
-  splitItem: {
+  splitPill: {
     flex: 1,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+  },
+  splitLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  // Without an explicit shrink, this View (and the Text inside it) defaults to its
-  // content's natural width and can overflow past the card edge instead of wrapping —
-  // this constrains it to whatever room splitItem actually has left after the icon badge.
-  splitTextGroup: {
-    flex: 1,
-    flexShrink: 1,
-  },
-  splitIconBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.xs,
-  },
-  splitDivider: {
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    marginHorizontal: spacing.sm,
+    gap: spacing['2xs'],
   },
   splitLabel: {
     ...typography.caption,
-    color: 'rgba(255,255,255,0.75)',
   },
   splitAmount: {
     ...typography.h2,
-    color: '#FFFFFF',
-    marginTop: 2,
+    marginTop: spacing['2xs'],
   },
   historyHeading: {
     ...typography.h1,
-    fontSize: 17,
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xs,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.sm,
   },
   searchRow: {
     flexDirection: 'row',
@@ -379,18 +355,22 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
+    ...typography.caption,
+    fontWeight: '600',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   sectionSubtotal: {
-    fontSize: 13,
+    ...typography.caption,
     fontWeight: '600',
+  },
+  // Clears the lifted "+" tab button so the last row isn't tucked under it.
+  listContent: {
+    paddingBottom: spacing['2xl'],
   },
   emptyContent: {
     flexGrow: 1,
