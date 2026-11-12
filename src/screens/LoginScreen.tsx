@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
   Linking,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -34,37 +36,61 @@ export function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.content}>
-        <Image source={require('../assets/icon.png')} style={styles.logo} />
-        <Text style={[styles.title, { color: theme.text }]}>Dompetcho</Text>
-        <Text style={[styles.subtitle, { color: theme.textMuted }]}>
-          Bagikan struk transfer Mandiri, catatan pengeluaran langsung jadi. Nyaris tanpa mengetik.
-        </Text>
-      </View>
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: theme.primary }, signingIn && styles.buttonDisabled]}
-        onPress={handlePress}
-        disabled={signingIn}
-        accessibilityRole="button"
-        accessibilityLabel="Masuk dengan Google"
-      >
-        {signingIn ? (
-          <ActivityIndicator color={theme.primaryText} />
-        ) : (
-          <Text style={[styles.buttonText, { color: theme.primaryText }]}>Masuk dengan Google</Text>
-        )}
-      </TouchableOpacity>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: theme.background }]}
+    >
+      {/* Edge-to-edge Android doesn't resize the window for the keyboard, so the form has to
+          make room itself: 'padding' shrinks the area above the keyboard, and the ScrollView
+          lets the focused field be scrolled into view (also on screens too short to fit the
+          whole form, where the tagline used to be overlapped by the Google button). */}
+      <KeyboardAvoidingView style={styles.flex} behavior="padding">
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            <Image source={require('../assets/icon.png')} style={styles.logo} />
+            <Text style={[styles.title, { color: theme.text }]}>Dompetcho</Text>
+            <Text style={[styles.subtitle, { color: theme.textMuted }]}>
+              Bagikan struk transfer Mandiri, catatan pengeluaran langsung jadi.
+              Nyaris tanpa mengetik.
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.button,
+              { backgroundColor: theme.primary },
+              signingIn && styles.buttonDisabled,
+            ]}
+            onPress={handlePress}
+            disabled={signingIn}
+            accessibilityRole="button"
+            accessibilityLabel="Masuk dengan Google"
+          >
+            {signingIn ? (
+              <ActivityIndicator color={theme.primaryText} />
+            ) : (
+              <Text style={[styles.buttonText, { color: theme.primaryText }]}>
+                Masuk dengan Google
+              </Text>
+            )}
+          </TouchableOpacity>
 
-      <EmailPasswordLogin />
+          <EmailPasswordLogin />
 
-      <TouchableOpacity
-        onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
-        accessibilityRole="link"
-        accessibilityLabel="Kebijakan Privasi"
-      >
-        <Text style={[styles.privacyLink, { color: theme.textMuted }]}>Kebijakan Privasi</Text>
-      </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+            accessibilityRole="link"
+            accessibilityLabel="Kebijakan Privasi"
+          >
+            <Text style={[styles.privacyLink, { color: theme.textMuted }]}>
+              Kebijakan Privasi
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -83,13 +109,17 @@ function EmailPasswordLogin() {
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const passwordRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   async function handlePress() {
     try {
       if (mode === 'signIn') {
         await signInWithPassword(email.trim(), password);
       } else {
-        const signedInImmediately = await signUpWithPassword(email.trim(), password);
+        const signedInImmediately = await signUpWithPassword(
+          email.trim(),
+          password,
+        );
         if (!signedInImmediately) {
           Alert.alert(
             'Cek email Anda',
@@ -112,47 +142,75 @@ function EmailPasswordLogin() {
       <View style={styles.dividerRow}>
         <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
         <Text style={[styles.dividerText, { color: theme.textMuted }]}>
-          {mode === 'signIn' ? 'atau masuk dengan email' : 'atau daftar dengan email'}
+          {mode === 'signIn'
+            ? 'atau masuk dengan email'
+            : 'atau daftar dengan email'}
         </Text>
         <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
       </View>
       <TextInput
-        style={[styles.emailInput, { color: theme.text, borderColor: theme.border }]}
+        style={[
+          styles.emailInput,
+          { color: theme.text, borderColor: theme.border },
+        ]}
         value={email}
         onChangeText={setEmail}
         placeholder="Email"
         placeholderTextColor={theme.textMuted}
         autoCapitalize="none"
         keyboardType="email-address"
+        returnKeyType="next"
+        blurOnSubmit={false}
+        onSubmitEditing={() => passwordRef.current?.focus()}
         accessibilityLabel="Email"
       />
       <TextInput
-        style={[styles.emailInput, { color: theme.text, borderColor: theme.border }]}
+        ref={passwordRef}
+        style={[
+          styles.emailInput,
+          { color: theme.text, borderColor: theme.border },
+        ]}
         value={password}
         onChangeText={setPassword}
         placeholder="Password"
         placeholderTextColor={theme.textMuted}
         secureTextEntry
         autoCapitalize="none"
+        returnKeyType="go"
+        onSubmitEditing={() => {
+          if (!signingIn && email && password) handlePress();
+        }}
         accessibilityLabel="Password"
       />
       <TouchableOpacity
-        style={[styles.emailButton, { borderColor: theme.primary }, signingIn && styles.buttonDisabled]}
+        style={[
+          styles.emailButton,
+          { borderColor: theme.primary },
+          signingIn && styles.buttonDisabled,
+        ]}
         onPress={handlePress}
         disabled={signingIn || !email || !password}
         accessibilityRole="button"
-        accessibilityLabel={mode === 'signIn' ? 'Masuk dengan email' : 'Daftar dengan email'}
+        accessibilityLabel={
+          mode === 'signIn' ? 'Masuk dengan email' : 'Daftar dengan email'
+        }
       >
-        <Text style={{ color: theme.primary, fontWeight: '700' }}>{mode === 'signIn' ? 'Masuk' : 'Daftar'}</Text>
+        <Text style={{ color: theme.primary, fontWeight: '700' }}>
+          {mode === 'signIn' ? 'Masuk' : 'Daftar'}
+        </Text>
       </TouchableOpacity>
       <TouchableOpacity
         onPress={() => setMode(mode === 'signIn' ? 'signUp' : 'signIn')}
         disabled={signingIn}
         accessibilityRole="button"
-        accessibilityLabel={mode === 'signIn' ? 'Beralih ke daftar akun baru' : 'Beralih ke masuk'}
+        accessibilityLabel={
+          mode === 'signIn' ? 'Beralih ke daftar akun baru' : 'Beralih ke masuk'
+        }
       >
         <Text style={[styles.switchModeText, { color: theme.textMuted }]}>
-          {mode === 'signIn' ? 'Belum punya akun? Daftar' : 'Sudah punya akun? Masuk'}
+          {mode === 'signIn'
+            ? 'Belum punya akun? Daftar'
+            : 'Sudah punya akun? Masuk'}
         </Text>
       </TouchableOpacity>
     </View>
@@ -160,16 +218,25 @@ function EmailPasswordLogin() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
+  },
+  flex: {
+    flex: 1,
+  },
+  container: {
+    flexGrow: 1,
     justifyContent: 'space-between',
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing['4xl'],
   },
   content: {
-    flex: 1,
+    // flexGrow (not flex: 1) so it keeps its natural height inside the ScrollView on short
+    // screens instead of collapsing to zero under the buttons.
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingBottom: spacing.md,
   },
   logo: {
     width: 88,
