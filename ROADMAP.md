@@ -9,7 +9,9 @@ pull in extra items or drift into adjacent cleanup that isn't listed here.
 Carried over from the original MVP1 spec — do not implement these without the item first
 being added to this file by a human:
 
-- No budgets
+- No budgets — except the single per-category monthly limit described under "More features"
+  ("Monthly budget per category"). Nothing broader: no rollover, no per-account or yearly
+  budgets, no alerts/notifications.
 - No subscriptions/recurring-expense tracking
 - No push notifications
 - No per-account balance tracking ("mini-wallets"). Multiple accounts are now in scope as a
@@ -188,6 +190,45 @@ touch" above.
       Debounce the input, show a distinct "no results" state (not the first-run `EmptyState`),
       and keep the balance/month cards unaffected by the filter. Likely bigger than a typical
       item — fine to split the search and the category filter into two PRs; note the split.
+
+- [ ] **Home: retry button for failed loads, and an offline state.** Today a failed
+      `loadInitial`/`refresh`/`loadMoreExpenses` only shows an `Alert` and leaves Home blank
+      or stale with no way to try again except pull-to-refresh. Add an inline error state
+      (Bahasa Indonesia copy, a "Coba Lagi" button using the existing button styles) in the
+      list's empty/footer slot, keyed off the store's error state, and a slim "Tidak ada
+      koneksi" banner when a request fails with a network error. No new native dependency —
+      detect offline from the failed request, don't add `@react-native-community/netinfo`.
+      Cover the store's error → retry transition with a test.
+
+- [ ] **Swipe to delete an expense, with undo.** First check whether `ExpenseFormScreen`
+      already deletes (it mentions "Hapus"); the goal here is the fast path on Home: swipe a
+      row (`react-native-gesture-handler` is already installed) to reveal a "Hapus" action,
+      delete via a new `deleteExpense` in `expenseService.ts`, and show a short "Dihapus —
+      Urungkan" snackbar that restores the row if tapped within a few seconds (re-insert the
+      same values rather than keeping a soft-delete column). Balance and month cards must
+      update immediately and stay correct after undo. Add store tests for delete and undo.
+
+- [ ] **Monthly budget per category.** This is the one budgets feature a human has approved
+      (see the note on the "No budgets" non-goal). Add a `category_budgets` table to
+      `supabase/schema.sql` (`user_id`, `category_id`, `monthly_limit`, unique per
+      user+category, RLS scoping to the owner, idempotent `create table if not exists`),
+      flag in the PR that schema.sql auto-applies on merge to `dev`. Add a small "Anggaran"
+      row per category on Summary (tap to set or clear a limit through the existing
+      `AmountInput`) and, for the selected month, a thin progress bar under each category in
+      the month list: neutral under 80%, warning color from 80%, danger color over 100%, with
+      "Rp X dari Rp Y" text. No rollover, no per-account or yearly budgets, and no
+      notifications — display only. Put the percent/over-budget math in `src/utils/` with
+      tests.
+
+- [ ] **Export expenses to CSV.** Add an "Ekspor CSV" row on Profile that builds a CSV of
+      the expenses for a chosen month (a simple previous/next month picker is enough;
+      default is the current month) and hands it to the system share sheet with React
+      Native's built-in `Share` API — no new native dependency (no file-system or
+      document-picker library). Columns: date (local, `YYYY-MM-DD`), type, category, account,
+      amount, note. Put CSV building in `src/utils/` with tests covering commas, quotes and
+      newlines in the note, and a month with no expenses (show a message instead of sharing
+      an empty file). The export should fetch with `listExpenses` pagination so it isn't
+      limited to what Home has loaded.
 
 ## Maintenance / hardening
 
