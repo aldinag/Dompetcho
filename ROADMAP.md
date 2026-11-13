@@ -191,7 +191,7 @@ touch" above.
       and keep the balance/month cards unaffected by the filter. Likely bigger than a typical
       item — fine to split the search and the category filter into two PRs; note the split.
 
-- [ ] **Home: retry button for failed loads, and an offline state.** Today a failed
+- [x] **Home: retry button for failed loads, and an offline state.** Today a failed
       `loadInitial`/`refresh`/`loadMoreExpenses` only shows an `Alert` and leaves Home blank
       or stale with no way to try again except pull-to-refresh. Add an inline error state
       (Bahasa Indonesia copy, a "Coba Lagi" button using the existing button styles) in the
