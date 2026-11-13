@@ -59,6 +59,8 @@ beforeEach(() => {
     accounts: [],
     loading: false,
     refreshing: false,
+    error: null,
+    isOffline: false,
   });
 });
 
@@ -112,6 +114,78 @@ describe('useExpenseStore.loadInitial', () => {
     await useExpenseStore.getState().loadInitial();
 
     expect(useExpenseStore.getState().hasMoreExpenses).toBe(true);
+  });
+});
+
+describe('useExpenseStore error / retry', () => {
+  it('records a network error from loadInitial and clears it once a retry succeeds', async () => {
+    mockListExpenses.mockRejectedValueOnce(new TypeError('Network request failed'));
+    mockListCategories.mockResolvedValue([]);
+    mockListAccounts.mockResolvedValue([]);
+
+    await expect(useExpenseStore.getState().loadInitial()).rejects.toThrow('Network request failed');
+
+    let state = useExpenseStore.getState();
+    expect(state.error).toBe('Network request failed');
+    expect(state.isOffline).toBe(true);
+
+    mockListExpenses.mockResolvedValueOnce([FAKE_EXPENSE]);
+    await useExpenseStore.getState().loadInitial();
+
+    state = useExpenseStore.getState();
+    expect(state.error).toBeNull();
+    expect(state.isOffline).toBe(false);
+    expect(state.expenses).toEqual([FAKE_EXPENSE]);
+  });
+
+  it('records a non-network error from loadInitial without marking it offline', async () => {
+    mockListExpenses.mockRejectedValueOnce(new Error('relation "public.expenses" does not exist'));
+    mockListCategories.mockResolvedValue([]);
+    mockListAccounts.mockResolvedValue([]);
+
+    await expect(useExpenseStore.getState().loadInitial()).rejects.toThrow();
+
+    const state = useExpenseStore.getState();
+    expect(state.error).toBe('relation "public.expenses" does not exist');
+    expect(state.isOffline).toBe(false);
+  });
+
+  it('records and then clears an error from a failed refresh', async () => {
+    useExpenseStore.setState({ expenses: [FAKE_EXPENSE] });
+    mockListExpenses.mockRejectedValueOnce(new TypeError('Network request failed'));
+
+    await expect(useExpenseStore.getState().refresh()).rejects.toThrow();
+    expect(useExpenseStore.getState().error).toBe('Network request failed');
+    expect(useExpenseStore.getState().isOffline).toBe(true);
+    // A failed refresh must not wipe what was already on screen.
+    expect(useExpenseStore.getState().expenses).toEqual([FAKE_EXPENSE]);
+
+    mockListExpenses.mockResolvedValueOnce([FAKE_EXPENSE]);
+    await useExpenseStore.getState().refresh();
+    expect(useExpenseStore.getState().error).toBeNull();
+    expect(useExpenseStore.getState().isOffline).toBe(false);
+  });
+
+  it('records an error from a failed loadMoreExpenses, keeping hasMoreExpenses so retry can run again', async () => {
+    useExpenseStore.setState({ expenses: [FAKE_EXPENSE], hasMoreExpenses: true });
+    mockListExpenses.mockRejectedValueOnce(new TypeError('Network request failed'));
+
+    await expect(useExpenseStore.getState().loadMoreExpenses()).rejects.toThrow();
+
+    let state = useExpenseStore.getState();
+    expect(state.error).toBe('Network request failed');
+    expect(state.isOffline).toBe(true);
+    expect(state.hasMoreExpenses).toBe(true);
+    expect(state.expenses).toEqual([FAKE_EXPENSE]);
+
+    const nextPage = [expense({ id: 'e2' })];
+    mockListExpenses.mockResolvedValueOnce(nextPage);
+    await useExpenseStore.getState().loadMoreExpenses();
+
+    state = useExpenseStore.getState();
+    expect(state.error).toBeNull();
+    expect(state.isOffline).toBe(false);
+    expect(state.expenses).toEqual([FAKE_EXPENSE, ...nextPage]);
   });
 });
 
