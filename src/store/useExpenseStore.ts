@@ -1,7 +1,12 @@
 import { create } from 'zustand';
 import { createAccount, deleteAccount, listAccounts, updateAccount } from '../services/accountService';
 import { listCategories } from '../services/categoryService';
-import { getExpenseTotals, listExpenses } from '../services/expenseService';
+import {
+  createExpense,
+  deleteExpense as deleteExpenseRemote,
+  getExpenseTotals,
+  listExpenses,
+} from '../services/expenseService';
 import { Account, AccountKind, Category, Expense } from '../types';
 import { currentMonthRange } from '../utils/dateRange';
 
@@ -34,6 +39,11 @@ interface ExpenseState {
   addExpenseOptimistic: (expense: Expense) => void;
   replaceExpense: (tempId: string, real: Expense) => void;
   removeExpense: (id: string) => void;
+  /** Removes `expense` optimistically and deletes it on the server; rolls back on failure. */
+  deleteExpense: (expense: Expense) => Promise<void>;
+  /** Re-creates `expense` with the same values — used by the "Urungkan" undo snackbar after a
+   *  delete has already gone through (there's no soft-delete column to simply un-set). */
+  restoreExpense: (expense: Expense) => Promise<void>;
   addAccount: (userId: string, name: string, kind: AccountKind) => Promise<void>;
   renameAccount: (id: string, name: string, kind: AccountKind) => Promise<void>;
   removeAccount: (id: string) => Promise<void>;
@@ -215,6 +225,41 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       expenses: state.expenses.filter(e => e.id !== id),
       ...applyDelta(state, state.expenses.find(e => e.id === id), undefined),
     })),
+
+  deleteExpense: async expense => {
+    set(state => ({
+      expenses: state.expenses.filter(e => e.id !== expense.id),
+      ...applyDelta(state, expense, undefined),
+    }));
+    try {
+      await deleteExpenseRemote(expense.id);
+    } catch (error) {
+      // Roll back: put it back at the top (same convention as addExpenseOptimistic) and
+      // restore the balance/month totals it contributed.
+      set(state => ({
+        expenses: [expense, ...state.expenses],
+        ...applyDelta(state, undefined, expense),
+      }));
+      throw error;
+    }
+  },
+
+  restoreExpense: async expense => {
+    const real = await createExpense({
+      userId: expense.user_id,
+      amount: Number(expense.amount),
+      categoryId: expense.category_id,
+      accountId: expense.account_id,
+      note: expense.note,
+      date: expense.date,
+      source: expense.source,
+      type: expense.type,
+    });
+    set(state => ({
+      expenses: [real, ...state.expenses],
+      ...applyDelta(state, undefined, real),
+    }));
+  },
 
   addAccount: async (userId, name, kind) => {
     const account = await createAccount(userId, name, kind);

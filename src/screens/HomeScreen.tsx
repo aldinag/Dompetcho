@@ -18,6 +18,8 @@ import { CategoryFilterBar } from '../components/CategoryFilterBar';
 import { EmptyState } from '../components/EmptyState';
 import { ExpenseListItem } from '../components/ExpenseListItem';
 import { Icon } from '../components/Icon';
+import { SwipeableRow } from '../components/SwipeableRow';
+import { UndoSnackbar } from '../components/UndoSnackbar';
 import { tintedShadow } from '../constants/elevation';
 import { radius } from '../constants/radius';
 import { spacing } from '../constants/spacing';
@@ -27,9 +29,13 @@ import { useTheme } from '../hooks/useTheme';
 import { RootStackParamList } from '../navigation/types';
 import { useAuthStore } from '../store/useAuthStore';
 import { useExpenseStore } from '../store/useExpenseStore';
+import { Expense } from '../types';
 import { greeting } from '../utils/dateRange';
 import { formatRupiah } from '../utils/format';
 import { groupByDay } from '../utils/groupExpenses';
+
+// How long the "Dihapus — Urungkan" snackbar stays up before the delete becomes final.
+const UNDO_WINDOW_MS = 5000;
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -53,6 +59,40 @@ export function HomeScreen() {
   const loadMoreExpenses = useExpenseStore(state => state.loadMoreExpenses);
   const setSearchQuery = useExpenseStore(state => state.setSearchQuery);
   const setCategoryFilter = useExpenseStore(state => state.setCategoryFilter);
+  const deleteExpense = useExpenseStore(state => state.deleteExpense);
+  const restoreExpense = useExpenseStore(state => state.restoreExpense);
+
+  // Only one row's deletion can be pending undo at a time — swiping another row's delete
+  // while one is already pending just replaces it (the previous one has already been sent to
+  // the server by then, so it isn't lost, only its chance to be undone).
+  const [pendingUndo, setPendingUndo] = useState<Expense | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+  }, []);
+
+  const handleDeleteExpense = useCallback(
+    (expense: Expense) => {
+      deleteExpense(expense).catch((error: any) => {
+        Alert.alert('Gagal menghapus pengeluaran', error?.message ?? 'Silakan coba lagi.');
+      });
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+      setPendingUndo(expense);
+      undoTimer.current = setTimeout(() => setPendingUndo(null), UNDO_WINDOW_MS);
+    },
+    [deleteExpense],
+  );
+
+  const handleUndoDelete = useCallback(() => {
+    if (!pendingUndo) return;
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    const expense = pendingUndo;
+    setPendingUndo(null);
+    restoreExpense(expense).catch((error: any) => {
+      Alert.alert('Gagal mengurungkan', error?.message ?? 'Silakan coba lagi.');
+    });
+  }, [pendingUndo, restoreExpense]);
 
   useEffect(() => {
     loadInitial().catch((error: any) => {
@@ -206,7 +246,14 @@ export function HomeScreen() {
       <SectionList
         sections={sections}
         keyExtractor={item => item.id}
-        renderItem={({ item }) => <ExpenseListItem expense={item} />}
+        renderItem={({ item }) => (
+          <SwipeableRow
+            onDelete={() => handleDeleteExpense(item)}
+            deleteAccessibilityLabel={`Hapus pengeluaran ${formatRupiah(item.amount)}`}
+          >
+            <ExpenseListItem expense={item} />
+          </SwipeableRow>
+        )}
         renderSectionHeader={({ section }) => (
           <View style={[styles.sectionHeader, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>{section.title}</Text>
@@ -251,9 +298,20 @@ export function HomeScreen() {
         keyboardShouldPersistTaps="handled"
         stickySectionHeadersEnabled
       />
+      {pendingUndo && (
+        <UndoSnackbar
+          message="Dihapus — Urungkan"
+          onUndo={handleUndoDelete}
+          bottom={insets.bottom + TAB_BAR_HEIGHT + spacing.sm}
+        />
+      )}
     </View>
   );
 }
+
+// The bottom tab bar's fixed height (see TabNavigator) — the snackbar sits just above it
+// instead of underneath, where it would be unreachable.
+const TAB_BAR_HEIGHT = 72;
 
 const styles = StyleSheet.create({
   container: {

@@ -200,7 +200,7 @@ touch" above.
       detect offline from the failed request, don't add `@react-native-community/netinfo`.
       Cover the store's error → retry transition with a test.
 
-- [ ] **Swipe to delete an expense, with undo.** First check whether `ExpenseFormScreen`
+- [x] **Swipe to delete an expense, with undo.** First check whether `ExpenseFormScreen`
       already deletes (it mentions "Hapus"); the goal here is the fast path on Home: swipe a
       row (`react-native-gesture-handler` is already installed) to reveal a "Hapus" action,
       delete via a new `deleteExpense` in `expenseService.ts`, and show a short "Dihapus —

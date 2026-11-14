@@ -147,3 +147,8 @@ export async function updateExpense(id: string, input: UpdateExpenseInput): Prom
   if (error) throw error;
   return data;
 }
+
+export async function deleteExpense(id: string): Promise<void> {
+  const { error } = await supabase.from('expenses').delete().eq('id', id);
+  if (error) throw error;
+}
