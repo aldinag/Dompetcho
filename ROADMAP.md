@@ -208,7 +208,7 @@ touch" above.
       same values rather than keeping a soft-delete column). Balance and month cards must
       update immediately and stay correct after undo. Add store tests for delete and undo.
 
-- [ ] **Monthly budget per category.** This is the one budgets feature a human has approved
+- [x] **Monthly budget per category.** This is the one budgets feature a human has approved
       (see the note on the "No budgets" non-goal). Add a `category_budgets` table to
       `supabase/schema.sql` (`user_id`, `category_id`, `monthly_limit`, unique per
       user+category, RLS scoping to the owner, idempotent `create table if not exists`),

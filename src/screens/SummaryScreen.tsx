@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AmountInput } from '../components/AmountInput';
 import { CategoryDonutChart } from '../components/CategoryDonutChart';
 import { Icon } from '../components/Icon';
 import { cardShadow } from '../constants/elevation';
@@ -9,17 +10,23 @@ import { spacing } from '../constants/spacing';
 import { tabularNums, typography } from '../constants/typography';
 import { useStatusBarStyle } from '../hooks/useStatusBarStyle';
 import { useTheme } from '../hooks/useTheme';
+import { clearCategoryBudget, listCategoryBudgets, setCategoryBudget } from '../services/budgetService';
 import { getExpenseBreakdownByMonth, MonthlyExpenseBreakdown } from '../services/expenseService';
+import { useAuthStore } from '../store/useAuthStore';
+import { CategoryBudget } from '../types';
+import { budgetProgress, formatBudgetProgressLabel } from '../utils/budgetProgress';
 import { formatRupiah } from '../utils/format';
 import { BreakdownMode, buildMonthSections } from '../utils/summaryBreakdown';
 
 export function SummaryScreen() {
   const theme = useTheme();
   useStatusBarStyle('default');
+  const user = useAuthStore(state => state.user);
   // The breakdown below covers every expense ever recorded (grouped by month), but as an
   // already-aggregated RPC result rather than every raw expense row — see ROADMAP's "Move the
   // totals and Summary breakdown to server-side aggregates".
   const [breakdownRows, setBreakdownRows] = useState<MonthlyExpenseBreakdown[]>([]);
+  const [budgets, setBudgets] = useState<CategoryBudget[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [mode, setMode] = useState<BreakdownMode>('category');
 
@@ -27,17 +34,64 @@ export function SummaryScreen() {
     getExpenseBreakdownByMonth().then(setBreakdownRows).catch((error: any) => {
       Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
     });
+    listCategoryBudgets().catch((error: any) => {
+      Alert.alert('Gagal memuat anggaran', error?.message ?? 'Silakan coba lagi.');
+      return [];
+    }).then(result => result && setBudgets(result));
   }, []);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    getExpenseBreakdownByMonth()
-      .then(setBreakdownRows)
+    Promise.all([getExpenseBreakdownByMonth(), listCategoryBudgets()])
+      .then(([rows, budgetRows]) => {
+        setBreakdownRows(rows);
+        setBudgets(budgetRows);
+      })
       .catch((error: any) => {
         Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
       })
       .finally(() => setRefreshing(false));
   }, []);
+
+  const budgetByCategoryId = useMemo(() => {
+    const map = new Map<string, CategoryBudget>();
+    for (const b of budgets) map.set(b.category_id, b);
+    return map;
+  }, [budgets]);
+
+  // Which category's budget editor is open, if any — only one at a time.
+  const [editingBudgetCategoryId, setEditingBudgetCategoryId] = useState<string | null>(null);
+  const [editingBudgetValue, setEditingBudgetValue] = useState<number | null>(null);
+  const [savingBudget, setSavingBudget] = useState(false);
+
+  function openBudgetEditor(categoryId: string) {
+    setEditingBudgetCategoryId(categoryId);
+    setEditingBudgetValue(budgetByCategoryId.get(categoryId)?.monthly_limit ?? null);
+  }
+
+  function closeBudgetEditor() {
+    setEditingBudgetCategoryId(null);
+    setEditingBudgetValue(null);
+  }
+
+  async function saveBudgetEditor() {
+    if (!editingBudgetCategoryId || !user) return;
+    setSavingBudget(true);
+    try {
+      if (editingBudgetValue === null || editingBudgetValue <= 0) {
+        await clearCategoryBudget(editingBudgetCategoryId);
+        setBudgets(prev => prev.filter(b => b.category_id !== editingBudgetCategoryId));
+      } else {
+        const saved = await setCategoryBudget(user.id, editingBudgetCategoryId, editingBudgetValue);
+        setBudgets(prev => [...prev.filter(b => b.category_id !== editingBudgetCategoryId), saved]);
+      }
+      closeBudgetEditor();
+    } catch (error: any) {
+      Alert.alert('Gagal menyimpan anggaran', error?.message ?? 'Silakan coba lagi.');
+    } finally {
+      setSavingBudget(false);
+    }
+  }
 
   const sections = useMemo(() => buildMonthSections(breakdownRows, mode), [breakdownRows, mode]);
   const overallTotal = useMemo(() => sections.reduce((sum, s) => sum + s.total, 0), [sections]);
@@ -150,25 +204,107 @@ export function SummaryScreen() {
       <SectionList
         sections={sections}
         keyExtractor={(item, index) => `${item.id}-${index}`}
-        renderItem={({ item }) => (
-          <View style={styles.listRow}>
-            <View style={styles.listLeft}>
-              {item.icon ? (
-                <View style={[styles.iconBadge, { backgroundColor: `${item.color}26` }]}>
-                  <Icon name={item.icon} size={18} color={item.color} />
+        renderItem={({ item, section }) => {
+          // Budgets are per category, and only shown for the chart's selected month — the
+          // month-grouped list otherwise covers every month ever recorded, and a limit is a
+          // recurring "this month" concept, not something worth re-showing against old months.
+          // "uncategorized" is a synthetic row (see utils/summaryBreakdown.ts), not a real
+          // category, so it has no `category_budgets` row to attach a limit to.
+          const canBudget = mode === 'category' && section.key === chartSection?.key && item.id !== 'uncategorized';
+          const budget = canBudget ? budgetByCategoryId.get(item.id) : undefined;
+          const isEditing = editingBudgetCategoryId === item.id;
+          const progress = budget ? budgetProgress(item.amount, budget.monthly_limit) : null;
+          const progressColor = progress
+            ? { neutral: theme.primary, warning: theme.warning, danger: theme.danger }[progress.status]
+            : theme.primary;
+
+          return (
+            <View style={styles.itemContainer}>
+              <View style={styles.listRow}>
+                <View style={styles.listLeft}>
+                  {item.icon ? (
+                    <View style={[styles.iconBadge, { backgroundColor: `${item.color}26` }]}>
+                      <Icon name={item.icon} size={18} color={item.color} />
+                    </View>
+                  ) : (
+                    <View style={[styles.iconBadge, { backgroundColor: item.color }]} />
+                  )}
+                  <Text style={[styles.listLabel, { color: theme.text }]} numberOfLines={1}>
+                    {item.label}
+                  </Text>
                 </View>
-              ) : (
-                <View style={[styles.iconBadge, { backgroundColor: item.color }]} />
+                <Text style={[styles.listAmount, tabularNums, { color: theme.textMuted }]}>
+                  {formatRupiah(item.amount)}
+                </Text>
+              </View>
+
+              {canBudget && !isEditing && (
+                <View style={styles.budgetBlock}>
+                  {budget ? (
+                    <>
+                      <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>
+                        <View
+                          style={[
+                            styles.progressFill,
+                            { width: `${Math.min(progress!.percent, 100)}%`, backgroundColor: progressColor },
+                          ]}
+                        />
+                      </View>
+                      <View style={styles.budgetRow}>
+                        <Text style={[styles.budgetText, tabularNums, { color: theme.textMuted }]}>
+                          {formatBudgetProgressLabel(item.amount, budget.monthly_limit)}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => openBudgetEditor(item.id)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Ubah anggaran ${item.label}`}
+                          hitSlop={8}
+                        >
+                          <Text style={[styles.budgetAction, { color: theme.primary }]}>Ubah</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => openBudgetEditor(item.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Atur anggaran ${item.label}`}
+                      style={styles.setBudgetButton}
+                    >
+                      <Text style={[styles.budgetAction, { color: theme.primary }]}>Atur anggaran</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
-              <Text style={[styles.listLabel, { color: theme.text }]} numberOfLines={1}>
-                {item.label}
-              </Text>
+
+              {canBudget && isEditing && (
+                <View style={styles.budgetEditor}>
+                  <Text style={[styles.budgetEditorLabel, { color: theme.textMuted }]}>
+                    Anggaran bulanan — {item.label}
+                  </Text>
+                  <AmountInput value={editingBudgetValue} onChangeValue={setEditingBudgetValue} autoFocus />
+                  <View style={styles.budgetEditorActions}>
+                    <TouchableOpacity onPress={closeBudgetEditor} accessibilityRole="button" style={styles.budgetEditorButton}>
+                      <Text style={[styles.budgetAction, { color: theme.textMuted }]}>Batal</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={saveBudgetEditor}
+                      disabled={savingBudget}
+                      accessibilityRole="button"
+                      style={styles.budgetEditorButton}
+                    >
+                      {savingBudget ? (
+                        <ActivityIndicator color={theme.primary} />
+                      ) : (
+                        <Text style={[styles.budgetAction, styles.budgetActionBold, { color: theme.primary }]}>Simpan</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
             </View>
-            <Text style={[styles.listAmount, tabularNums, { color: theme.textMuted }]}>
-              {formatRupiah(item.amount)}
-            </Text>
-          </View>
-        )}
+          );
+        }}
         renderSectionHeader={({ section }) => (
           <View style={[styles.sectionHeader, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>{section.title}</Text>
@@ -272,12 +408,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  itemContainer: {
+    paddingHorizontal: spacing.md,
+  },
   listRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
     minHeight: 44,
   },
   listLeft: {
@@ -295,6 +433,50 @@ const styles = StyleSheet.create({
   },
   listLabel: { ...typography.h2, flexShrink: 1 },
   listAmount: { ...typography.h2, fontWeight: '400' },
+  budgetBlock: {
+    marginLeft: 36 + spacing.sm, // align under the label, past the icon badge
+    marginBottom: spacing.xs,
+  },
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: 4,
+    borderRadius: 2,
+  },
+  budgetRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: spacing['2xs'],
+  },
+  budgetText: { ...typography.caption },
+  budgetAction: { ...typography.caption, fontWeight: '600' },
+  budgetActionBold: { fontWeight: '700' },
+  setBudgetButton: {
+    alignSelf: 'flex-start',
+    minHeight: 28,
+    justifyContent: 'center',
+  },
+  budgetEditor: {
+    marginLeft: 36 + spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  budgetEditorLabel: { ...typography.caption, fontWeight: '700', marginBottom: spacing['2xs'] },
+  budgetEditorActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.md,
+    marginTop: spacing.xs,
+  },
+  budgetEditorButton: {
+    minHeight: 36,
+    minWidth: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   emptyContent: { flexGrow: 1 },
   empty: { ...typography.body, marginTop: spacing['4xl'], textAlign: 'center' },
 });
