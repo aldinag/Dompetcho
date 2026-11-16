@@ -4,6 +4,7 @@ import { listCategories } from '../services/categoryService';
 import { getExpenseTotals, listExpenses } from '../services/expenseService';
 import { Account, AccountKind, Category, Expense } from '../types';
 import { currentMonthRange } from '../utils/dateRange';
+import { isNetworkError } from '../utils/networkError';
 
 // Keeps Home's "Transaksi Terakhir" fetch bounded regardless of how long someone has used
 // the app — see ROADMAP's "Add pagination to listExpenses".
@@ -24,6 +25,10 @@ interface ExpenseState {
   accounts: Account[];
   loading: boolean;
   refreshing: boolean;
+  /** Message from the most recent failed loadInitial/refresh/loadMoreExpenses; null once one succeeds. */
+  error: string | null;
+  /** Whether that failure looked like a connectivity problem rather than a server error. */
+  isOffline: boolean;
   loadInitial: () => Promise<void>;
   refresh: () => Promise<void>;
   loadMoreExpenses: () => Promise<void>;
@@ -89,6 +94,10 @@ function currentFilterOptions(state: Pick<ExpenseState, 'searchQuery' | 'categor
 // firing just after a category chip tap) can detect it's stale and not clobber a newer result.
 let filterRequestId = 0;
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Silakan coba lagi.';
+}
+
 export const useExpenseStore = create<ExpenseState>((set, get) => ({
   expenses: [],
   hasMoreExpenses: false,
@@ -103,6 +112,8 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
   accounts: [],
   loading: false,
   refreshing: false,
+  error: null,
+  isOffline: false,
 
   loadInitial: async () => {
     if (get().loading) return;
@@ -134,6 +145,10 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
         (r): r is PromiseRejectedResult => r.status === 'rejected',
       );
       if (firstFailure) throw firstFailure.reason;
+      set({ error: null, isOffline: false });
+    } catch (error) {
+      set({ error: errorMessage(error), isOffline: isNetworkError(error) });
+      throw error;
     } finally {
       set({ loading: false });
     }
@@ -152,7 +167,12 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
         balance: totals.balance,
         monthIncome: totals.monthIncome,
         monthExpense: totals.monthExpense,
+        error: null,
+        isOffline: false,
       });
+    } catch (error) {
+      set({ error: errorMessage(error), isOffline: isNetworkError(error) });
+      throw error;
     } finally {
       set({ refreshing: false });
     }
@@ -172,6 +192,10 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
         expenses: [...state.expenses, ...nextPage],
         hasMoreExpenses: nextPage.length === EXPENSES_PAGE_SIZE,
       }));
+      set({ error: null, isOffline: false });
+    } catch (error) {
+      set({ error: errorMessage(error), isOffline: isNetworkError(error) });
+      throw error;
     } finally {
       set({ loadingMoreExpenses: false });
     }
@@ -250,5 +274,7 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       accounts: [],
       loading: false,
       refreshing: false,
+      error: null,
+      isOffline: false,
     }),
 }));
