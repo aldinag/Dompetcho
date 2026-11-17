@@ -35,6 +35,16 @@ export interface Account {
   created_at: string;
 }
 
+// A monthly spending limit for one category — display-only, see schema.sql's
+// `category_budgets` comment for the non-goal this is the one approved exception to.
+export interface CategoryBudget {
+  id: string;
+  user_id: string;
+  category_id: string;
+  monthly_limit: number;
+  created_at: string;
+}
+
 export interface Expense {
   id: string;
   user_id: string;

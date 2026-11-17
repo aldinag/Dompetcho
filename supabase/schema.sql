@@ -101,6 +101,20 @@ end $$;
 create index if not exists expenses_user_date_idx on public.expenses (user_id, date desc);
 create index if not exists receipt_scans_user_status_idx on public.receipt_scans (user_id, status);
 
+-- A monthly spending limit per category — display-only (no rollover, no per-account/yearly
+-- budgets, no notifications; see ROADMAP's "No budgets" non-goal and its "Monthly budget per
+-- category" exception). One row per user+category; setting a new limit replaces the old one.
+create table if not exists public.category_budgets (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  category_id uuid not null references public.categories (id) on delete cascade,
+  monthly_limit numeric(14, 2) not null check (monthly_limit > 0),
+  created_at timestamptz not null default now(),
+  unique (user_id, category_id)
+);
+
+create index if not exists category_budgets_user_idx on public.category_budgets (user_id);
+
 -- === Auto-provision a user + their default categories on first Google sign-in ===
 
 create or replace function public.handle_new_auth_user()
@@ -148,6 +162,7 @@ alter table public.categories enable row level security;
 alter table public.expenses enable row level security;
 alter table public.receipt_scans enable row level security;
 alter table public.accounts enable row level security;
+alter table public.category_budgets enable row level security;
 
 -- Postgres has no `create policy if not exists`, so each is dropped first — safe to re-run.
 drop policy if exists "Users can view their own profile" on public.users;
@@ -220,6 +235,22 @@ create policy "Users can update their own accounts" on public.accounts
 
 drop policy if exists "Users can delete their own accounts" on public.accounts;
 create policy "Users can delete their own accounts" on public.accounts
+  for delete using (user_id = auth.uid());
+
+drop policy if exists "Users can view their own category budgets" on public.category_budgets;
+create policy "Users can view their own category budgets" on public.category_budgets
+  for select using (user_id = auth.uid());
+
+drop policy if exists "Users can insert their own category budgets" on public.category_budgets;
+create policy "Users can insert their own category budgets" on public.category_budgets
+  for insert with check (user_id = auth.uid());
+
+drop policy if exists "Users can update their own category budgets" on public.category_budgets;
+create policy "Users can update their own category budgets" on public.category_budgets
+  for update using (user_id = auth.uid());
+
+drop policy if exists "Users can delete their own category budgets" on public.category_budgets;
+create policy "Users can delete their own category budgets" on public.category_budgets
   for delete using (user_id = auth.uid());
 
 -- === Self-serve account deletion ============================================
