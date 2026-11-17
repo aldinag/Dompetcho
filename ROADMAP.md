@@ -220,7 +220,7 @@ touch" above.
       notifications — display only. Put the percent/over-budget math in `src/utils/` with
       tests.
 
-- [ ] **Export expenses to CSV.** Add an "Ekspor CSV" row on Profile that builds a CSV of
+- [x] **Export expenses to CSV.** Add an "Ekspor CSV" row on Profile that builds a CSV of
       the expenses for a chosen month (a simple previous/next month picker is enough;
       default is the current month) and hands it to the system share sheet with React
       Native's built-in `Share` API — no new native dependency (no file-system or
