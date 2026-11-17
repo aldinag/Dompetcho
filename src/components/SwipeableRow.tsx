@@ -30,6 +30,11 @@ export function SwipeableRow({ children, onDelete, deleteAccessibilityLabel }: S
   // gesture began — `onUpdate`'s `translationX` is always relative to that gesture's start,
   // not to the row's live position, so this is what makes a drag starting from "open" work.
   const baseOffset = useRef(0);
+  const trackOpacity = translateX.interpolate({
+    inputRange: [-ACTION_WIDTH, -8, 0],
+    outputRange: [1, 1, 0],
+    extrapolate: 'clamp',
+  });
 
   function animateTo(value: number) {
     baseOffset.current = value;
@@ -59,7 +64,13 @@ export function SwipeableRow({ children, onDelete, deleteAccessibilityLabel }: S
 
   return (
     <View style={styles.container}>
-      <View style={[styles.actionTrack, { backgroundColor: theme.danger }]}>
+      {/* Hidden until the row is actually dragged open: the row above it is opaque now, but this
+          also keeps the track's rounded edge from peeking out at rest and makes sure the delete
+          button can't be hit while closed. */}
+      <Animated.View
+        pointerEvents="box-none"
+        style={[styles.actionTrack, { backgroundColor: theme.danger, opacity: trackOpacity }]}
+      >
         <TouchableOpacity
           style={styles.action}
           onPress={handleDelete}
@@ -69,9 +80,13 @@ export function SwipeableRow({ children, onDelete, deleteAccessibilityLabel }: S
           <Icon name="trash" size={20} color="#FFFFFF" />
           <Text style={styles.actionText}>Hapus</Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
       <GestureDetector gesture={pan}>
-        <Animated.View style={{ transform: [{ translateX }] }}>{children}</Animated.View>
+        {/* Needs its own opaque background — the list rows are transparent, so without this the
+            red action track behind it shows through every row at rest. */}
+        <Animated.View style={{ backgroundColor: theme.background, transform: [{ translateX }] }}>
+          {children}
+        </Animated.View>
       </GestureDetector>
     </View>
   );
