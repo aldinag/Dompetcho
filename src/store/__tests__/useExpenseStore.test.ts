@@ -1,7 +1,7 @@
 import { useExpenseStore, EXPENSES_PAGE_SIZE } from '../useExpenseStore';
 import { listAccounts } from '../../services/accountService';
 import { listCategories } from '../../services/categoryService';
-import { getExpenseTotals, listExpenses } from '../../services/expenseService';
+import { createExpense, deleteExpense, getExpenseTotals, listExpenses } from '../../services/expenseService';
 import { Category, Expense } from '../../types';
 
 // Explicit factories (not bare `jest.mock(path)`) so the real modules — which pull in
@@ -14,12 +14,19 @@ jest.mock('../../services/accountService', () => ({
   deleteAccount: jest.fn(),
 }));
 jest.mock('../../services/categoryService', () => ({ listCategories: jest.fn() }));
-jest.mock('../../services/expenseService', () => ({ listExpenses: jest.fn(), getExpenseTotals: jest.fn() }));
+jest.mock('../../services/expenseService', () => ({
+  listExpenses: jest.fn(),
+  getExpenseTotals: jest.fn(),
+  createExpense: jest.fn(),
+  deleteExpense: jest.fn(),
+}));
 
 const mockListExpenses = listExpenses as jest.MockedFunction<typeof listExpenses>;
 const mockListCategories = listCategories as jest.MockedFunction<typeof listCategories>;
 const mockListAccounts = listAccounts as jest.MockedFunction<typeof listAccounts>;
 const mockGetExpenseTotals = getExpenseTotals as jest.MockedFunction<typeof getExpenseTotals>;
+const mockCreateExpense = createExpense as jest.MockedFunction<typeof createExpense>;
+const mockDeleteExpense = deleteExpense as jest.MockedFunction<typeof deleteExpense>;
 
 function expense(overrides: Partial<Expense> = {}): Expense {
   return {
@@ -59,6 +66,8 @@ beforeEach(() => {
     accounts: [],
     loading: false,
     refreshing: false,
+    error: null,
+    isOffline: false,
   });
 });
 
@@ -112,6 +121,78 @@ describe('useExpenseStore.loadInitial', () => {
     await useExpenseStore.getState().loadInitial();
 
     expect(useExpenseStore.getState().hasMoreExpenses).toBe(true);
+  });
+});
+
+describe('useExpenseStore error / retry', () => {
+  it('records a network error from loadInitial and clears it once a retry succeeds', async () => {
+    mockListExpenses.mockRejectedValueOnce(new TypeError('Network request failed'));
+    mockListCategories.mockResolvedValue([]);
+    mockListAccounts.mockResolvedValue([]);
+
+    await expect(useExpenseStore.getState().loadInitial()).rejects.toThrow('Network request failed');
+
+    let state = useExpenseStore.getState();
+    expect(state.error).toBe('Network request failed');
+    expect(state.isOffline).toBe(true);
+
+    mockListExpenses.mockResolvedValueOnce([FAKE_EXPENSE]);
+    await useExpenseStore.getState().loadInitial();
+
+    state = useExpenseStore.getState();
+    expect(state.error).toBeNull();
+    expect(state.isOffline).toBe(false);
+    expect(state.expenses).toEqual([FAKE_EXPENSE]);
+  });
+
+  it('records a non-network error from loadInitial without marking it offline', async () => {
+    mockListExpenses.mockRejectedValueOnce(new Error('relation "public.expenses" does not exist'));
+    mockListCategories.mockResolvedValue([]);
+    mockListAccounts.mockResolvedValue([]);
+
+    await expect(useExpenseStore.getState().loadInitial()).rejects.toThrow();
+
+    const state = useExpenseStore.getState();
+    expect(state.error).toBe('relation "public.expenses" does not exist');
+    expect(state.isOffline).toBe(false);
+  });
+
+  it('records and then clears an error from a failed refresh', async () => {
+    useExpenseStore.setState({ expenses: [FAKE_EXPENSE] });
+    mockListExpenses.mockRejectedValueOnce(new TypeError('Network request failed'));
+
+    await expect(useExpenseStore.getState().refresh()).rejects.toThrow();
+    expect(useExpenseStore.getState().error).toBe('Network request failed');
+    expect(useExpenseStore.getState().isOffline).toBe(true);
+    // A failed refresh must not wipe what was already on screen.
+    expect(useExpenseStore.getState().expenses).toEqual([FAKE_EXPENSE]);
+
+    mockListExpenses.mockResolvedValueOnce([FAKE_EXPENSE]);
+    await useExpenseStore.getState().refresh();
+    expect(useExpenseStore.getState().error).toBeNull();
+    expect(useExpenseStore.getState().isOffline).toBe(false);
+  });
+
+  it('records an error from a failed loadMoreExpenses, keeping hasMoreExpenses so retry can run again', async () => {
+    useExpenseStore.setState({ expenses: [FAKE_EXPENSE], hasMoreExpenses: true });
+    mockListExpenses.mockRejectedValueOnce(new TypeError('Network request failed'));
+
+    await expect(useExpenseStore.getState().loadMoreExpenses()).rejects.toThrow();
+
+    let state = useExpenseStore.getState();
+    expect(state.error).toBe('Network request failed');
+    expect(state.isOffline).toBe(true);
+    expect(state.hasMoreExpenses).toBe(true);
+    expect(state.expenses).toEqual([FAKE_EXPENSE]);
+
+    const nextPage = [expense({ id: 'e2' })];
+    mockListExpenses.mockResolvedValueOnce(nextPage);
+    await useExpenseStore.getState().loadMoreExpenses();
+
+    state = useExpenseStore.getState();
+    expect(state.error).toBeNull();
+    expect(state.isOffline).toBe(false);
+    expect(state.expenses).toEqual([FAKE_EXPENSE, ...nextPage]);
   });
 });
 
@@ -263,5 +344,60 @@ describe('useExpenseStore balance bookkeeping', () => {
     const state = useExpenseStore.getState();
     expect(state.balance).toBe(70_000); // 90_000 - (30_000 - 10_000)
     expect(state.monthExpense).toBe(30_000);
+  });
+});
+
+describe('useExpenseStore.deleteExpense', () => {
+  it('removes the row and its balance effect immediately, then deletes it on the server', async () => {
+    const toDelete = expense({ id: 'e7', amount: 12_000, type: 'expense' });
+    useExpenseStore.setState({ expenses: [toDelete], balance: 50_000, monthIncome: 0, monthExpense: 12_000 });
+    mockDeleteExpense.mockResolvedValue(undefined);
+
+    await useExpenseStore.getState().deleteExpense(toDelete);
+
+    expect(mockDeleteExpense).toHaveBeenCalledWith('e7');
+    const state = useExpenseStore.getState();
+    expect(state.expenses).toEqual([]);
+    expect(state.balance).toBe(62_000); // removing a 12_000 expense gives the balance back
+    expect(state.monthExpense).toBe(0);
+  });
+
+  it('rolls the row and its balance effect back when the server delete fails', async () => {
+    const toDelete = expense({ id: 'e8', amount: 12_000, type: 'expense' });
+    useExpenseStore.setState({ expenses: [toDelete], balance: 50_000, monthIncome: 0, monthExpense: 12_000 });
+    mockDeleteExpense.mockRejectedValue(new Error('network error'));
+
+    await expect(useExpenseStore.getState().deleteExpense(toDelete)).rejects.toThrow('network error');
+
+    const state = useExpenseStore.getState();
+    expect(state.expenses).toEqual([toDelete]);
+    expect(state.balance).toBe(50_000);
+    expect(state.monthExpense).toBe(12_000);
+  });
+});
+
+describe('useExpenseStore.restoreExpense', () => {
+  it('re-creates the expense with the same values and re-applies its balance effect', async () => {
+    useExpenseStore.setState({ expenses: [], balance: 38_000, monthIncome: 0, monthExpense: 0 });
+    const deleted = expense({ id: 'e9', amount: 12_000, type: 'expense', note: 'kopi' });
+    const recreated = expense({ id: 'e9-new', amount: 12_000, type: 'expense', note: 'kopi' });
+    mockCreateExpense.mockResolvedValue(recreated);
+
+    await useExpenseStore.getState().restoreExpense(deleted);
+
+    expect(mockCreateExpense).toHaveBeenCalledWith({
+      userId: deleted.user_id,
+      amount: 12_000,
+      categoryId: deleted.category_id,
+      accountId: deleted.account_id,
+      note: 'kopi',
+      date: deleted.date,
+      source: deleted.source,
+      type: 'expense',
+    });
+    const state = useExpenseStore.getState();
+    expect(state.expenses).toEqual([recreated]);
+    expect(state.balance).toBe(26_000);
+    expect(state.monthExpense).toBe(12_000);
   });
 });

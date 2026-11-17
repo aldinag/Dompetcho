@@ -1,9 +1,15 @@
 import { create } from 'zustand';
 import { createAccount, deleteAccount, listAccounts, updateAccount } from '../services/accountService';
 import { listCategories } from '../services/categoryService';
-import { getExpenseTotals, listExpenses } from '../services/expenseService';
+import {
+  createExpense,
+  deleteExpense as deleteExpenseRemote,
+  getExpenseTotals,
+  listExpenses,
+} from '../services/expenseService';
 import { Account, AccountKind, Category, Expense } from '../types';
 import { currentMonthRange } from '../utils/dateRange';
+import { isNetworkError } from '../utils/networkError';
 
 // Keeps Home's "Transaksi Terakhir" fetch bounded regardless of how long someone has used
 // the app — see ROADMAP's "Add pagination to listExpenses".
@@ -24,6 +30,10 @@ interface ExpenseState {
   accounts: Account[];
   loading: boolean;
   refreshing: boolean;
+  /** Message from the most recent failed loadInitial/refresh/loadMoreExpenses; null once one succeeds. */
+  error: string | null;
+  /** Whether that failure looked like a connectivity problem rather than a server error. */
+  isOffline: boolean;
   loadInitial: () => Promise<void>;
   refresh: () => Promise<void>;
   loadMoreExpenses: () => Promise<void>;
@@ -34,6 +44,11 @@ interface ExpenseState {
   addExpenseOptimistic: (expense: Expense) => void;
   replaceExpense: (tempId: string, real: Expense) => void;
   removeExpense: (id: string) => void;
+  /** Removes `expense` optimistically and deletes it on the server; rolls back on failure. */
+  deleteExpense: (expense: Expense) => Promise<void>;
+  /** Re-creates `expense` with the same values — used by the "Urungkan" undo snackbar after a
+   *  delete has already gone through (there's no soft-delete column to simply un-set). */
+  restoreExpense: (expense: Expense) => Promise<void>;
   addAccount: (userId: string, name: string, kind: AccountKind) => Promise<void>;
   renameAccount: (id: string, name: string, kind: AccountKind) => Promise<void>;
   removeAccount: (id: string) => Promise<void>;
@@ -89,6 +104,10 @@ function currentFilterOptions(state: Pick<ExpenseState, 'searchQuery' | 'categor
 // firing just after a category chip tap) can detect it's stale and not clobber a newer result.
 let filterRequestId = 0;
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Silakan coba lagi.';
+}
+
 export const useExpenseStore = create<ExpenseState>((set, get) => ({
   expenses: [],
   hasMoreExpenses: false,
@@ -103,6 +122,8 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
   accounts: [],
   loading: false,
   refreshing: false,
+  error: null,
+  isOffline: false,
 
   loadInitial: async () => {
     if (get().loading) return;
@@ -134,6 +155,10 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
         (r): r is PromiseRejectedResult => r.status === 'rejected',
       );
       if (firstFailure) throw firstFailure.reason;
+      set({ error: null, isOffline: false });
+    } catch (error) {
+      set({ error: errorMessage(error), isOffline: isNetworkError(error) });
+      throw error;
     } finally {
       set({ loading: false });
     }
@@ -152,7 +177,12 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
         balance: totals.balance,
         monthIncome: totals.monthIncome,
         monthExpense: totals.monthExpense,
+        error: null,
+        isOffline: false,
       });
+    } catch (error) {
+      set({ error: errorMessage(error), isOffline: isNetworkError(error) });
+      throw error;
     } finally {
       set({ refreshing: false });
     }
@@ -172,6 +202,10 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
         expenses: [...state.expenses, ...nextPage],
         hasMoreExpenses: nextPage.length === EXPENSES_PAGE_SIZE,
       }));
+      set({ error: null, isOffline: false });
+    } catch (error) {
+      set({ error: errorMessage(error), isOffline: isNetworkError(error) });
+      throw error;
     } finally {
       set({ loadingMoreExpenses: false });
     }
@@ -216,6 +250,41 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       ...applyDelta(state, state.expenses.find(e => e.id === id), undefined),
     })),
 
+  deleteExpense: async expense => {
+    set(state => ({
+      expenses: state.expenses.filter(e => e.id !== expense.id),
+      ...applyDelta(state, expense, undefined),
+    }));
+    try {
+      await deleteExpenseRemote(expense.id);
+    } catch (error) {
+      // Roll back: put it back at the top (same convention as addExpenseOptimistic) and
+      // restore the balance/month totals it contributed.
+      set(state => ({
+        expenses: [expense, ...state.expenses],
+        ...applyDelta(state, undefined, expense),
+      }));
+      throw error;
+    }
+  },
+
+  restoreExpense: async expense => {
+    const real = await createExpense({
+      userId: expense.user_id,
+      amount: Number(expense.amount),
+      categoryId: expense.category_id,
+      accountId: expense.account_id,
+      note: expense.note,
+      date: expense.date,
+      source: expense.source,
+      type: expense.type,
+    });
+    set(state => ({
+      expenses: [real, ...state.expenses],
+      ...applyDelta(state, undefined, real),
+    }));
+  },
+
   addAccount: async (userId, name, kind) => {
     const account = await createAccount(userId, name, kind);
     set(state => ({ accounts: [...state.accounts, account].sort((a, b) => a.name.localeCompare(b.name)) }));
@@ -250,5 +319,7 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       accounts: [],
       loading: false,
       refreshing: false,
+      error: null,
+      isOffline: false,
     }),
 }));

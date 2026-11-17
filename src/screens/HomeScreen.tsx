@@ -18,6 +18,8 @@ import { CategoryFilterBar } from '../components/CategoryFilterBar';
 import { EmptyState } from '../components/EmptyState';
 import { ExpenseListItem } from '../components/ExpenseListItem';
 import { Icon } from '../components/Icon';
+import { SwipeableRow } from '../components/SwipeableRow';
+import { UndoSnackbar } from '../components/UndoSnackbar';
 import { tintedShadow } from '../constants/elevation';
 import { radius } from '../constants/radius';
 import { spacing } from '../constants/spacing';
@@ -27,9 +29,13 @@ import { useTheme } from '../hooks/useTheme';
 import { RootStackParamList } from '../navigation/types';
 import { useAuthStore } from '../store/useAuthStore';
 import { useExpenseStore } from '../store/useExpenseStore';
+import { Expense } from '../types';
 import { greeting } from '../utils/dateRange';
 import { formatRupiah } from '../utils/format';
 import { groupByDay } from '../utils/groupExpenses';
+
+// How long the "Dihapus — Urungkan" snackbar stays up before the delete becomes final.
+const UNDO_WINDOW_MS = 5000;
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -48,16 +54,53 @@ export function HomeScreen() {
   const monthIncome = useExpenseStore(state => state.monthIncome);
   const monthExpense = useExpenseStore(state => state.monthExpense);
   const refreshing = useExpenseStore(state => state.refreshing);
+  const error = useExpenseStore(state => state.error);
+  const isOffline = useExpenseStore(state => state.isOffline);
   const loadInitial = useExpenseStore(state => state.loadInitial);
   const refresh = useExpenseStore(state => state.refresh);
   const loadMoreExpenses = useExpenseStore(state => state.loadMoreExpenses);
   const setSearchQuery = useExpenseStore(state => state.setSearchQuery);
   const setCategoryFilter = useExpenseStore(state => state.setCategoryFilter);
+  const deleteExpense = useExpenseStore(state => state.deleteExpense);
+  const restoreExpense = useExpenseStore(state => state.restoreExpense);
 
-  useEffect(() => {
-    loadInitial().catch((error: any) => {
-      Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
+  // Only one row's deletion can be pending undo at a time — swiping another row's delete
+  // while one is already pending just replaces it (the previous one has already been sent to
+  // the server by then, so it isn't lost, only its chance to be undone).
+  const [pendingUndo, setPendingUndo] = useState<Expense | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+  }, []);
+
+  const handleDeleteExpense = useCallback(
+    (expense: Expense) => {
+      deleteExpense(expense).catch((error: any) => {
+        Alert.alert('Gagal menghapus pengeluaran', error?.message ?? 'Silakan coba lagi.');
+      });
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+      setPendingUndo(expense);
+      undoTimer.current = setTimeout(() => setPendingUndo(null), UNDO_WINDOW_MS);
+    },
+    [deleteExpense],
+  );
+
+  const handleUndoDelete = useCallback(() => {
+    if (!pendingUndo) return;
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    const expense = pendingUndo;
+    setPendingUndo(null);
+    restoreExpense(expense).catch((error: any) => {
+      Alert.alert('Gagal mengurungkan', error?.message ?? 'Silakan coba lagi.');
     });
+  }, [pendingUndo, restoreExpense]);
+
+  // loadInitial/refresh/loadMoreExpenses no longer need an Alert on failure — their error
+  // (and whether it looked like a connectivity problem) lands in the store instead, and the
+  // list's empty/footer slot and the offline banner below render it with a way to retry.
+  useEffect(() => {
+    loadInitial().catch(() => {});
   }, [loadInitial]);
 
   // The TextInput is bound to this local, un-debounced value so typing feels instant; the
@@ -72,8 +115,8 @@ export function HomeScreen() {
       return;
     }
     const handle = setTimeout(() => {
-      setSearchQuery(searchInput).catch((error: any) => {
-        Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
+      setSearchQuery(searchInput).catch((err: any) => {
+        Alert.alert('Gagal memuat data', err?.message ?? 'Silakan coba lagi.');
       });
     }, 350);
     return () => clearTimeout(handle);
@@ -81,8 +124,8 @@ export function HomeScreen() {
 
   const handleSelectCategoryFilter = useCallback(
     (categoryId: string | null) => {
-      setCategoryFilter(categoryId).catch((error: any) => {
-        Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
+      setCategoryFilter(categoryId).catch((err: any) => {
+        Alert.alert('Gagal memuat data', err?.message ?? 'Silakan coba lagi.');
       });
     },
     [setCategoryFilter],
@@ -91,21 +134,28 @@ export function HomeScreen() {
   const isFiltering = searchInput.trim() !== '' || categoryFilterId !== null;
 
   const handleRefresh = useCallback(() => {
-    refresh().catch((error: any) => {
-      Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
-    });
+    refresh().catch(() => {});
   }, [refresh]);
 
   const handleLoadMore = useCallback(() => {
-    loadMoreExpenses().catch((error: any) => {
-      Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
-    });
+    loadMoreExpenses().catch(() => {});
   }, [loadMoreExpenses]);
+
+  const handleRetryInitial = useCallback(() => {
+    loadInitial().catch(() => {});
+  }, [loadInitial]);
 
   const sections = useMemo(() => groupByDay(expenses), [expenses]);
 
   const listHeader = (
     <>
+      {isOffline && (
+        <View style={[styles.offlineBanner, { backgroundColor: theme.warning }]}>
+          <Icon name="warning" size={14} color={theme.heroText} />
+          <Text style={[styles.offlineBannerText, { color: theme.heroText }]}>Tidak ada koneksi</Text>
+        </View>
+      )}
+
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <TouchableOpacity
           style={styles.greetingRow}
@@ -206,7 +256,14 @@ export function HomeScreen() {
       <SectionList
         sections={sections}
         keyExtractor={item => item.id}
-        renderItem={({ item }) => <ExpenseListItem expense={item} />}
+        renderItem={({ item }) => (
+          <SwipeableRow
+            onDelete={() => handleDeleteExpense(item)}
+            deleteAccessibilityLabel={`Hapus pengeluaran ${formatRupiah(item.amount)}`}
+          >
+            <ExpenseListItem expense={item} />
+          </SwipeableRow>
+        )}
         renderSectionHeader={({ section }) => (
           <View style={[styles.sectionHeader, { backgroundColor: theme.background, borderColor: theme.border }]}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>{section.title}</Text>
@@ -223,25 +280,46 @@ export function HomeScreen() {
               title="Tidak ada hasil"
               body="Coba kata kunci atau kategori lain."
             />
+          ) : error ? (
+            <View style={styles.errorState}>
+              <Icon name="warning" size={40} color={theme.danger} />
+              <Text style={[styles.errorTitle, { color: theme.text }]}>Gagal memuat data</Text>
+              <Text style={[styles.errorBody, { color: theme.textMuted }]}>{error}</Text>
+              <TouchableOpacity
+                style={[styles.outlineButton, { borderColor: theme.border }]}
+                onPress={handleRetryInitial}
+                accessibilityRole="button"
+                accessibilityLabel="Coba lagi memuat data"
+              >
+                <Text style={[styles.outlineButtonText, { color: theme.primary }]}>Coba Lagi</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
             <EmptyState />
           )
         }
         ListFooterComponent={
           hasMoreExpenses ? (
-            <TouchableOpacity
-              style={[styles.loadMoreButton, { borderColor: theme.border }]}
-              onPress={handleLoadMore}
-              disabled={loadingMoreExpenses}
-              accessibilityRole="button"
-              accessibilityLabel="Muat transaksi lebih lama"
-            >
-              {loadingMoreExpenses ? (
-                <ActivityIndicator color={theme.primary} />
-              ) : (
-                <Text style={[styles.loadMoreText, { color: theme.primary }]}>Muat Lebih Banyak</Text>
+            <View>
+              {error && !loadingMoreExpenses && (
+                <Text style={[styles.footerErrorText, { color: theme.danger }]}>{error}</Text>
               )}
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.outlineButton, { borderColor: theme.border }]}
+                onPress={handleLoadMore}
+                disabled={loadingMoreExpenses}
+                accessibilityRole="button"
+                accessibilityLabel={error ? 'Coba lagi memuat transaksi' : 'Muat transaksi lebih lama'}
+              >
+                {loadingMoreExpenses ? (
+                  <ActivityIndicator color={theme.primary} />
+                ) : (
+                  <Text style={[styles.outlineButtonText, { color: theme.primary }]}>
+                    {error ? 'Coba Lagi' : 'Muat Lebih Banyak'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
           ) : undefined
         }
         onEndReached={handleLoadMore}
@@ -251,9 +329,20 @@ export function HomeScreen() {
         keyboardShouldPersistTaps="handled"
         stickySectionHeadersEnabled
       />
+      {pendingUndo && (
+        <UndoSnackbar
+          message="Dihapus — Urungkan"
+          onUndo={handleUndoDelete}
+          bottom={insets.bottom + TAB_BAR_HEIGHT + spacing.sm}
+        />
+      )}
     </View>
   );
 }
+
+// The bottom tab bar's fixed height (see TabNavigator) — the snackbar sits just above it
+// instead of underneath, where it would be unreachable.
+const TAB_BAR_HEIGHT = 72;
 
 const styles = StyleSheet.create({
   container: {
@@ -381,7 +470,9 @@ const styles = StyleSheet.create({
   emptyContent: {
     flexGrow: 1,
   },
-  loadMoreButton: {
+  // Shared by the footer's "Muat Lebih Banyak"/"Coba Lagi" button and the empty-state retry
+  // button — same outlined pill either way.
+  outlineButton: {
     marginHorizontal: spacing.md,
     marginVertical: spacing.md,
     minHeight: 44,
@@ -390,7 +481,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  loadMoreText: {
+  outlineButtonText: {
     fontWeight: '600',
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing['2xs'],
+    paddingVertical: spacing.xs,
+  },
+  offlineBannerText: {
+    ...typography.caption,
+    fontWeight: '600',
+  },
+  errorState: {
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingTop: 80,
+  },
+  errorTitle: {
+    ...typography.h1,
+    marginTop: spacing.sm,
+    marginBottom: spacing['2xs'],
+  },
+  errorBody: {
+    ...typography.body,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+  footerErrorText: {
+    ...typography.caption,
+    textAlign: 'center',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
   },
 });

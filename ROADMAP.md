@@ -191,7 +191,7 @@ touch" above.
       and keep the balance/month cards unaffected by the filter. Likely bigger than a typical
       item — fine to split the search and the category filter into two PRs; note the split.
 
-- [ ] **Home: retry button for failed loads, and an offline state.** Today a failed
+- [x] **Home: retry button for failed loads, and an offline state.** Today a failed
       `loadInitial`/`refresh`/`loadMoreExpenses` only shows an `Alert` and leaves Home blank
       or stale with no way to try again except pull-to-refresh. Add an inline error state
       (Bahasa Indonesia copy, a "Coba Lagi" button using the existing button styles) in the
@@ -200,7 +200,7 @@ touch" above.
       detect offline from the failed request, don't add `@react-native-community/netinfo`.
       Cover the store's error → retry transition with a test.
 
-- [ ] **Swipe to delete an expense, with undo.** First check whether `ExpenseFormScreen`
+- [x] **Swipe to delete an expense, with undo.** First check whether `ExpenseFormScreen`
       already deletes (it mentions "Hapus"); the goal here is the fast path on Home: swipe a
       row (`react-native-gesture-handler` is already installed) to reveal a "Hapus" action,
       delete via a new `deleteExpense` in `expenseService.ts`, and show a short "Dihapus —
