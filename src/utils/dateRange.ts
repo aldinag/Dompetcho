@@ -5,11 +5,18 @@ export interface MonthRange {
 }
 
 export function currentMonthRange(): MonthRange {
+  return monthRangeOffset(0);
+}
+
+/** The `monthsBack`-th month before the current one (0 = current month). */
+export function monthRangeOffset(monthsBack: number): MonthRange {
   const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1);
+  const end = new Date(now.getFullYear(), now.getMonth() - monthsBack + 1, 1);
   return {
-    start: new Date(now.getFullYear(), now.getMonth(), 1).getTime(),
-    end: new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime(),
-    label: now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+    start: start.getTime(),
+    end: end.getTime(),
+    label: start.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
   };
 }
 

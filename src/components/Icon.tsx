@@ -22,7 +22,8 @@ export type IconName =
   | 'warning'
   | 'search'
   | 'close'
-  | 'trash';
+  | 'trash'
+  | 'export';
 
 interface IconProps {
   name: IconName;
@@ -62,6 +63,7 @@ const PATHS: Record<IconName, string> = {
   search: 'M4 11a7 7 0 1 0 14 0 7 7 0 1 0-14 0Z M16.5 16.5 21 21',
   close: 'M6 6l12 12 M18 6 6 18',
   trash: 'M5 7h14 M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2 M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13 M10 11v6 M14 11v6',
+  export: 'M12 14V4 M8 7l4-4 4 4 M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4',
 };
 
 export function Icon({ name, size = 24, color = '#000000', strokeWidth = 2 }: IconProps) {

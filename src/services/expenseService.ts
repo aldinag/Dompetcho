@@ -18,6 +18,10 @@ export interface ListExpensesOptions {
   /** Matched against `note` with a case-insensitive substring search (`ilike`). */
   noteSearch?: string;
   categoryId?: string;
+  /** ISO timestamp, inclusive lower bound on `date`. */
+  dateFrom?: string;
+  /** ISO timestamp, exclusive upper bound on `date`. */
+  dateTo?: string;
 }
 
 // Home's recent-transactions list passes `limit` (and a growing `offset` for "load more") so
@@ -37,6 +41,12 @@ export async function listExpenses(options: ListExpensesOptions = {}): Promise<E
   if (options.categoryId) {
     query = query.eq('category_id', options.categoryId);
   }
+  if (options.dateFrom) {
+    query = query.gte('date', options.dateFrom);
+  }
+  if (options.dateTo) {
+    query = query.lt('date', options.dateTo);
+  }
   if (options.limit !== undefined) {
     const offset = options.offset ?? 0;
     query = query.range(offset, offset + options.limit - 1);
@@ -44,6 +54,23 @@ export async function listExpenses(options: ListExpensesOptions = {}): Promise<E
   const { data, error } = await query;
   if (error) throw error;
   return data ?? [];
+}
+
+const EXPORT_PAGE_SIZE = 500;
+
+// CSV export needs every expense in the chosen month, not just whatever page Home has
+// loaded — pages through `listExpenses` with its existing date-range filter instead of
+// adding a second, unbounded query.
+export async function listExpensesInRange(dateFrom: string, dateTo: string): Promise<Expense[]> {
+  const all: Expense[] = [];
+  let offset = 0;
+  while (true) {
+    const page = await listExpenses({ dateFrom, dateTo, limit: EXPORT_PAGE_SIZE, offset });
+    all.push(...page);
+    if (page.length < EXPORT_PAGE_SIZE) break;
+    offset += EXPORT_PAGE_SIZE;
+  }
+  return all;
 }
 
 export interface ExpenseTotals {

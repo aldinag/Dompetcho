@@ -1,12 +1,13 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
   Linking,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -23,8 +24,11 @@ import { typography } from '../constants/typography';
 import { useStatusBarStyle } from '../hooks/useStatusBarStyle';
 import { useTheme } from '../hooks/useTheme';
 import { RootStackParamList } from '../navigation/types';
+import { listExpensesInRange } from '../services/expenseService';
 import { useAuthStore } from '../store/useAuthStore';
 import { useExpenseStore } from '../store/useExpenseStore';
+import { buildExpenseCsv } from '../utils/csvExport';
+import { monthRangeOffset } from '../utils/dateRange';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -37,6 +41,38 @@ export function ProfileScreen() {
   const signOut = useAuthStore(state => state.signOut);
   const deletingAccount = useAuthStore(state => state.deletingAccount);
   const deleteAccount = useAuthStore(state => state.deleteAccount);
+
+  const [exportMonthsBack, setExportMonthsBack] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const exportRange = useMemo(() => monthRangeOffset(exportMonthsBack), [exportMonthsBack]);
+
+  function handleExportOlderMonth() {
+    setExportMonthsBack(months => months + 1);
+  }
+
+  function handleExportNewerMonth() {
+    setExportMonthsBack(months => Math.max(months - 1, 0));
+  }
+
+  async function handleExportCsv() {
+    setExporting(true);
+    try {
+      const expenses = await listExpensesInRange(
+        new Date(exportRange.start).toISOString(),
+        new Date(exportRange.end).toISOString(),
+      );
+      const csv = buildExpenseCsv(expenses);
+      if (!csv) {
+        Alert.alert('Tidak ada data', `Tidak ada pengeluaran pada ${exportRange.label} untuk diekspor.`);
+        return;
+      }
+      await Share.share({ message: csv, title: `Pengeluaran ${exportRange.label}` });
+    } catch (error: any) {
+      Alert.alert('Gagal mengekspor', error?.message ?? 'Silakan coba lagi.');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   function confirmLogout() {
     Alert.alert('Keluar', 'Yakin ingin keluar?', [
@@ -140,6 +176,50 @@ export function ProfileScreen() {
           </View>
         </TouchableOpacity>
 
+        <View style={[styles.card, cardShadow, { backgroundColor: theme.surface }]}>
+          <View style={styles.navRow}>
+            <Text style={[styles.rowValue, { color: theme.text }]}>Ekspor CSV</Text>
+            <Icon name="export" size={20} color={theme.textMuted} />
+          </View>
+          <View style={styles.exportMonthRow}>
+            <TouchableOpacity
+              onPress={handleExportOlderMonth}
+              accessibilityRole="button"
+              accessibilityLabel="Bulan sebelumnya"
+              hitSlop={8}
+            >
+              <Icon name="chevron-left" size={18} color={theme.text} />
+            </TouchableOpacity>
+            <Text style={[styles.exportMonthLabel, { color: theme.textMuted }]}>{exportRange.label}</Text>
+            <TouchableOpacity
+              onPress={handleExportNewerMonth}
+              disabled={exportMonthsBack === 0}
+              accessibilityRole="button"
+              accessibilityLabel="Bulan berikutnya"
+              hitSlop={8}
+            >
+              <Icon
+                name="chevron-right"
+                size={18}
+                color={exportMonthsBack === 0 ? theme.textDisabled : theme.text}
+              />
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={[styles.exportButton, { backgroundColor: theme.primary }, exporting && styles.buttonDisabled]}
+            onPress={handleExportCsv}
+            disabled={exporting}
+            accessibilityRole="button"
+            accessibilityLabel="Ekspor CSV"
+          >
+            {exporting ? (
+              <ActivityIndicator color={theme.primaryText} />
+            ) : (
+              <Text style={[styles.exportButtonText, { color: theme.primaryText }]}>Ekspor CSV</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity
           style={[styles.card, styles.logoutCard, cardShadow, { backgroundColor: theme.surface }]}
           onPress={confirmLogout}
@@ -234,6 +314,27 @@ const styles = StyleSheet.create({
   },
   rowValue: {
     ...typography.h2,
+  },
+  exportMonthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  exportMonthLabel: {
+    ...typography.body,
+    marginHorizontal: spacing.sm,
+  },
+  exportButton: {
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  exportButtonText: {
+    ...typography.h2,
+    fontSize: 15,
+    fontWeight: '600',
   },
   logoutCard: {
     alignItems: 'center',
