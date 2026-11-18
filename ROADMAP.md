@@ -12,7 +12,10 @@ being added to this file by a human:
 - No budgets — except the single per-category monthly limit described under "More features"
   ("Monthly budget per category"). Nothing broader: no rollover, no per-account or yearly
   budgets, no alerts/notifications.
-- No subscriptions/recurring-expense tracking
+- No subscriptions/recurring-expense tracking — except the weekly/monthly recurring
+  transactions described under "More features" ("Recurring transactions", three steps).
+  Nothing broader: no yearly or custom intervals, no reminders, and no push notifications
+  of any kind (they still apply below) — due items are simply posted when the app opens.
 - No push notifications
 - No per-account balance tracking ("mini-wallets"). Multiple accounts are now in scope as a
   source/payment-method *tag* on each expense (see Next MVP below) — but a running balance
@@ -229,6 +232,91 @@ touch" above.
       newlines in the note, and a month with no expenses (show a message instead of sharing
       an empty file). The export should fetch with `listExpenses` pagination so it isn't
       limited to what Home has loaded.
+
+### Recurring transactions (one feature, three steps — do them in order)
+
+- [ ] **Recurring transactions, step 1 of 3: data layer.** Add a `recurring_transactions`
+      table to `supabase/schema.sql` (`id`, `user_id`, `type` income/expense, `amount > 0`,
+      `category_id`, `account_id`, `note`, `frequency` `weekly`|`monthly`, `anchor_date`
+      (the first occurrence), `last_posted_on` date nullable, `is_active` default true,
+      `created_at`), RLS scoping to the owner, idempotent `create table if not exists`.
+      Also add nullable `recurring_id` (references the table, `on delete set null`) and
+      `occurrence_date` (date) columns to `expenses` plus a partial unique index on
+      `(recurring_id, occurrence_date) where recurring_id is not null` — this is what makes
+      posting idempotent across devices — and allow `'recurring'` in the `expenses.source`
+      check (mirror how earlier migrations dropped/re-added that constraint). Flag in the PR
+      that schema.sql auto-applies on merge to `dev`. Add `src/services/recurringService.ts`
+      (list/create/update/delete) following `budgetService.ts`'s shape, and a pure util in
+      `src/utils/` that, given a rule and "today", returns every due occurrence date not yet
+      posted: weekly steps by 7 days, monthly keeps the anchor's day-of-month but clamps to
+      the last day of short months (31st → 28/29/30), local-time dates, capped at 12
+      occurrences per call. Unit-test the util hard (month-end clamping, leap year, a rule
+      starting in the future, nothing due, the cap, timezone near midnight). No UI yet.
+
+- [ ] **Recurring transactions, step 2 of 3: manage screen.** Add a "Transaksi Berulang" row
+      on Profile (next to "Kelola Akun") opening a `ManageRecurringScreen`, modelled on
+      `ManageAccountsScreen`: a list showing each rule's note/category, amount, "Tiap
+      minggu" / "Tiap bulan" plus the next due date, a pause/resume switch, and swipe or
+      button delete with confirmation; an add/edit form reusing `AmountInput`,
+      `CategoryPicker`, `AccountPicker`, the income/expense toggle and the date picker (the
+      chosen date becomes `anchor_date`), with a weekly/monthly segmented control. Add an
+      `EmptyState` explaining the feature in one sentence. UI text in Bahasa Indonesia.
+      Don't post anything yet — this step only creates and edits rules.
+
+- [ ] **Recurring transactions, step 3 of 3: post due items on app open.** When the user is
+      signed in and the app starts or returns to the foreground (`AppState`), fetch active
+      rules, compute due occurrences with the step-1 util, and insert them as normal
+      expenses (`source = 'recurring'`, with `recurring_id` + `occurrence_date`), then update
+      `last_posted_on`. Rely on the unique index for safety: treat a unique-violation as
+      "already posted" and carry on, so two devices opening at once can't double-post. Catch
+      up missed periods (up to the cap) rather than skipping them. Refresh the Home store
+      afterwards and show one `UndoSnackbar`-style message, "N transaksi berulang
+      ditambahkan", with no per-item prompts. Show a small "Berulang" badge on those rows in
+      `ExpenseListItem`. Throttle so it runs at most once per foreground. Add tests for the
+      orchestration with the service mocked (nothing due, several due, unique-violation
+      swallowed, a failing rule doesn't block the others).
+
+### Smoother UX on existing features
+
+- [ ] **Add form: remember the last category and account.** Opening "Tambah" currently
+      starts blank, so repeat entries cost extra taps. Default the new-expense form's
+      category and account (and type) to those of the most recent expense already in the
+      Home store; no new storage or dependency. Don't override anything when editing or when
+      a receipt import pre-fills the form. The user can still change every field. Put the
+      "pick defaults from the latest expense" logic in `src/utils/` with tests (empty
+      history, latest has no category/account, deleted category/account).
+
+- [ ] **Add/edit form: inline validation and a delete button.** Replace the "Nominal wajib
+      diisi" `Alert` with an inline error under the amount field (danger color, cleared as
+      soon as a valid amount is entered) and keep "Simpan" visually enabled-but-guarded
+      rather than silently failing. When editing an existing expense, add a "Hapus" button
+      at the bottom (danger style, confirmation `Alert`, then go back and reuse the same
+      delete + undo flow as Home's swipe-to-delete — check `HomeScreen` and the store
+      before writing any new delete code). Keep every other `Alert` as is.
+
+- [ ] **Summary: tap a category to see its transactions.** In the month list on Summary,
+      make each category row open Home pre-filtered to that category and that month. Check
+      first whether Home's filter state (search + category, from the "Search and filter"
+      item) can be seeded through navigation params; if it can't, add the smallest param
+      wiring needed and a visible "Filter: <kategori>, <bulan>" chip with an "x" to clear it.
+      The balance/month cards on Home must stay unfiltered. Keep the budget "Ubah anggaran"
+      tap target separate so tapping it doesn't navigate.
+
+- [ ] **Summary: compare with last month.** Under the selected month's total expense, show
+      a one-line comparison with the previous month ("Rp 250.000 lebih hemat dari bulan
+      lalu" in the success color / "Rp 120.000 lebih boros…" in the danger color; hide it
+      when the previous month has no data), and the same small delta per category row. Reuse
+      the data `SummaryScreen` already loads — no extra query. Put the delta math in
+      `src/utils/` with tests (no previous month, zero previous, category missing last month,
+      income excluded).
+
+- [ ] **Consistent error handling on Summary and Kelola Akun.** Home got an inline "Coba
+      Lagi" error state; Summary and `ManageAccountsScreen` still only throw an `Alert` on a
+      failed load and then sit blank. Give both the same inline error state (reuse the
+      pattern/component from Home rather than copying it — extract a small shared component
+      if that's cleaner) with a retry button, plus the "Tidak ada koneksi" wording for
+      network errors via `src/utils/networkError.ts`. Don't change save/delete failure
+      alerts.
 
 ## Maintenance / hardening
 
