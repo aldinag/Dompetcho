@@ -15,6 +15,8 @@ function expense(overrides: Partial<Expense> = {}): Expense {
     date: '2026-11-05T12:00:00.000Z',
     source: 'manual',
     type: 'expense',
+    recurring_id: null,
+    occurrence_date: null,
     created_at: '2026-11-05T12:00:00.000Z',
     ...overrides,
   };

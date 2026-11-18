@@ -115,6 +115,45 @@ create table if not exists public.category_budgets (
 
 create index if not exists category_budgets_user_idx on public.category_budgets (user_id);
 
+-- A recurring rule the app posts as a normal expense/income row when due (see ROADMAP's
+-- "Recurring transactions" — weekly/monthly only, no yearly/custom intervals, no reminders
+-- or push notifications; due items are simply posted when the app opens). `anchor_date` is
+-- the rule's first occurrence; `last_posted_on` tracks the most recent occurrence actually
+-- posted so the posting step (added later) knows where to resume.
+create table if not exists public.recurring_transactions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  type text not null check (type in ('income', 'expense')),
+  amount numeric(14, 2) not null check (amount > 0),
+  category_id uuid references public.categories (id) on delete set null,
+  account_id uuid references public.accounts (id) on delete set null,
+  note text,
+  frequency text not null check (frequency in ('weekly', 'monthly')),
+  anchor_date date not null,
+  last_posted_on date,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists recurring_transactions_user_idx on public.recurring_transactions (user_id);
+
+-- Safe to re-run against a database that already had `expenses` without these columns.
+-- `occurrence_date` is the local calendar date a recurring rule's instance was due for (not
+-- necessarily today, if posting catches up a missed period); the partial unique index on the
+-- pair is what makes posting idempotent across devices racing to post the same occurrence.
+alter table public.expenses add column if not exists recurring_id uuid references public.recurring_transactions (id) on delete set null;
+alter table public.expenses add column if not exists occurrence_date date;
+
+create unique index if not exists expenses_recurring_occurrence_idx
+  on public.expenses (recurring_id, occurrence_date)
+  where recurring_id is not null;
+
+-- Safe to re-run against a database whose `source` check constraint predates recurring
+-- postings (see `expenses_type_check` above for the same drop/add pattern).
+alter table public.expenses drop constraint if exists expenses_source_check;
+alter table public.expenses add constraint expenses_source_check
+  check (source in ('manual', 'receipt_ocr', 'recurring'));
+
 -- === Auto-provision a user + their default categories on first Google sign-in ===
 
 create or replace function public.handle_new_auth_user()
@@ -163,6 +202,7 @@ alter table public.expenses enable row level security;
 alter table public.receipt_scans enable row level security;
 alter table public.accounts enable row level security;
 alter table public.category_budgets enable row level security;
+alter table public.recurring_transactions enable row level security;
 
 -- Postgres has no `create policy if not exists`, so each is dropped first — safe to re-run.
 drop policy if exists "Users can view their own profile" on public.users;
@@ -251,6 +291,22 @@ create policy "Users can update their own category budgets" on public.category_b
 
 drop policy if exists "Users can delete their own category budgets" on public.category_budgets;
 create policy "Users can delete their own category budgets" on public.category_budgets
+  for delete using (user_id = auth.uid());
+
+drop policy if exists "Users can view their own recurring transactions" on public.recurring_transactions;
+create policy "Users can view their own recurring transactions" on public.recurring_transactions
+  for select using (user_id = auth.uid());
+
+drop policy if exists "Users can insert their own recurring transactions" on public.recurring_transactions;
+create policy "Users can insert their own recurring transactions" on public.recurring_transactions
+  for insert with check (user_id = auth.uid());
+
+drop policy if exists "Users can update their own recurring transactions" on public.recurring_transactions;
+create policy "Users can update their own recurring transactions" on public.recurring_transactions
+  for update using (user_id = auth.uid());
+
+drop policy if exists "Users can delete their own recurring transactions" on public.recurring_transactions;
+create policy "Users can delete their own recurring transactions" on public.recurring_transactions
   for delete using (user_id = auth.uid());
 
 -- === Self-serve account deletion ============================================

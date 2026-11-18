@@ -39,6 +39,8 @@ function expense(overrides: Partial<Expense> = {}): Expense {
     date: new Date().toISOString(), // "this month" by default
     source: 'manual',
     type: 'expense',
+    recurring_id: null,
+    occurrence_date: null,
     created_at: new Date().toISOString(),
     category: null,
     ...overrides,
