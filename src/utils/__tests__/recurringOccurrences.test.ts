@@ -1,4 +1,4 @@
-import { dueOccurrences } from '../recurringOccurrences';
+import { dueOccurrences, nextOccurrenceDate } from '../recurringOccurrences';
 
 describe('dueOccurrences — weekly', () => {
   it('returns nothing when the anchor is in the future', () => {
@@ -126,5 +126,37 @@ describe('dueOccurrences — monthly', () => {
       lateNight,
     );
     expect(result).toEqual(['2026-11-15']);
+  });
+});
+
+describe('nextOccurrenceDate', () => {
+  it('weekly: returns the anchor when nothing has posted yet, even if still in the future', () => {
+    expect(nextOccurrenceDate({ frequency: 'weekly', anchorDate: '2026-12-01', lastPostedOn: null })).toBe(
+      '2026-12-01',
+    );
+  });
+
+  it('weekly: steps 7 days from the last posted occurrence', () => {
+    expect(
+      nextOccurrenceDate({ frequency: 'weekly', anchorDate: '2026-11-04', lastPostedOn: '2026-11-18' }),
+    ).toBe('2026-11-25');
+  });
+
+  it('monthly: returns the anchor when nothing has posted yet', () => {
+    expect(nextOccurrenceDate({ frequency: 'monthly', anchorDate: '2026-12-15', lastPostedOn: null })).toBe(
+      '2026-12-15',
+    );
+  });
+
+  it('monthly: clamps the next step to a shorter month', () => {
+    expect(
+      nextOccurrenceDate({ frequency: 'monthly', anchorDate: '2026-01-31', lastPostedOn: '2026-01-31' }),
+    ).toBe('2026-02-28');
+  });
+
+  it('monthly: reverts to the 31st once a longer month comes back around', () => {
+    expect(
+      nextOccurrenceDate({ frequency: 'monthly', anchorDate: '2026-01-31', lastPostedOn: '2026-02-28' }),
+    ).toBe('2026-03-31');
   });
 });

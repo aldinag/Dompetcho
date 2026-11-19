@@ -43,6 +43,26 @@ function addMonthsClamped(anchor: Date, monthsToAdd: number): Date {
 }
 
 /**
+ * The next occurrence `rule` will post, regardless of whether it's due yet — unlike
+ * `dueOccurrences`, this isn't capped to `today`. Used to show a rule's upcoming date in the
+ * manage-rules UI, before any posting has happened.
+ */
+export function nextOccurrenceDate(rule: RecurringOccurrenceRule): string {
+  const anchor = parseLocalDate(rule.anchorDate);
+  const lastPostedOn = rule.lastPostedOn ? parseLocalDate(rule.lastPostedOn) : null;
+
+  if (rule.frequency === 'weekly') {
+    const next = lastPostedOn ? addDays(lastPostedOn, 7) : anchor;
+    return formatLocalDate(next);
+  }
+
+  const monthsFromAnchor = lastPostedOn
+    ? (lastPostedOn.getFullYear() - anchor.getFullYear()) * 12 + (lastPostedOn.getMonth() - anchor.getMonth()) + 1
+    : 0;
+  return formatLocalDate(addMonthsClamped(anchor, monthsFromAnchor));
+}
+
+/**
  * Every occurrence of `rule` that's due (on or before `today`, local calendar day) and
  * hasn't been posted yet, oldest first. Both `rule`'s dates and `today` are read in local
  * time (never UTC), so a call near midnight lands on the correct local day. An empty result

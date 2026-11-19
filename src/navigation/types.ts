@@ -15,6 +15,7 @@ export type RootStackParamList = {
   Main: undefined;
   Profile: undefined;
   ManageAccounts: undefined;
+  ManageRecurring: undefined;
   ExpenseForm: {
     receiptScanId?: string;
     imageUri?: string;
