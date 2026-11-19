@@ -235,7 +235,7 @@ touch" above.
 
 ### Recurring transactions (one feature, three steps — do them in order)
 
-- [ ] **Recurring transactions, step 1 of 3: data layer.** Add a `recurring_transactions`
+- [x] **Recurring transactions, step 1 of 3: data layer.** Add a `recurring_transactions`
       table to `supabase/schema.sql` (`id`, `user_id`, `type` income/expense, `amount > 0`,
       `category_id`, `account_id`, `note`, `frequency` `weekly`|`monthly`, `anchor_date`
       (the first occurrence), `last_posted_on` date nullable, `is_active` default true,

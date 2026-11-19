@@ -27,6 +27,8 @@ function expense(overrides: Partial<Expense> = {}): Expense {
     date: '2026-09-15T12:00:00.000Z',
     source: 'manual',
     type: 'expense',
+    recurring_id: null,
+    occurrence_date: null,
     created_at: '2026-09-15T12:00:00.000Z',
     category: category(),
     account: null,

@@ -164,6 +164,8 @@ export function ExpenseFormScreen() {
       date,
       source: isReceiptFlow ? 'receipt_ocr' : 'manual',
       type,
+      recurring_id: null,
+      occurrence_date: null,
       created_at: new Date().toISOString(),
       category: categories.find(c => c.id === categoryId) ?? null,
     };

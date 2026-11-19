@@ -1,4 +1,4 @@
-export type ExpenseSource = 'manual' | 'receipt_ocr';
+export type ExpenseSource = 'manual' | 'receipt_ocr' | 'recurring';
 
 export type TransactionType = 'income' | 'expense';
 
@@ -7,6 +7,8 @@ export type BankDetected = 'mandiri' | 'gojek' | 'grab' | 'unrecognized';
 export type ReceiptScanStatus = 'pending_review' | 'confirmed' | 'discarded';
 
 export type AccountKind = 'bank' | 'ewallet' | 'cash';
+
+export type RecurringFrequency = 'weekly' | 'monthly';
 
 export interface AppUser {
   id: string;
@@ -55,9 +57,30 @@ export interface Expense {
   date: string; // ISO timestamp of when it happened (timestamptz)
   source: ExpenseSource;
   type: TransactionType;
+  recurring_id: string | null;
+  occurrence_date: string | null; // "yyyy-MM-dd", set only when source is 'recurring'
   created_at: string;
   category?: Category | null;
   account?: Account | null;
+}
+
+// A weekly/monthly rule the app posts as a normal expense/income row when due — see
+// schema.sql's `recurring_transactions` comment for the non-goal this is the approved
+// exception to. `anchor_date` is the rule's first occurrence; `last_posted_on` is the most
+// recent occurrence actually posted (null until the posting step, added later, runs once).
+export interface RecurringTransaction {
+  id: string;
+  user_id: string;
+  type: TransactionType;
+  amount: number;
+  category_id: string | null;
+  account_id: string | null;
+  note: string | null;
+  frequency: RecurringFrequency;
+  anchor_date: string; // "yyyy-MM-dd"
+  last_posted_on: string | null; // "yyyy-MM-dd"
+  is_active: boolean;
+  created_at: string;
 }
 
 export interface ReceiptScan {
