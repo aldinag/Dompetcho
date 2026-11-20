@@ -10,6 +10,9 @@ export interface CreateExpenseInput {
   date: string; // ISO timestamp
   source: ExpenseSource;
   type: TransactionType;
+  /** Set together, only when `source` is 'recurring' — see `recurringPostingService.ts`. */
+  recurringId?: string | null;
+  occurrenceDate?: string | null; // "yyyy-MM-dd"
 }
 
 export interface ListExpensesOptions {
@@ -138,6 +141,8 @@ export async function createExpense(input: CreateExpenseInput): Promise<Expense>
       date: input.date,
       source: input.source,
       type: input.type,
+      recurring_id: input.recurringId ?? null,
+      occurrence_date: input.occurrenceDate ?? null,
     })
     .select('*, category:categories(*)')
     .single();
