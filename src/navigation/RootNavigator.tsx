@@ -2,6 +2,10 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { InfoSnackbar } from '../components/InfoSnackbar';
+import { spacing } from '../constants/spacing';
+import { useRecurringPosting } from '../hooks/useRecurringPosting';
 import { useShareIntent } from '../hooks/useShareIntent';
 import { useTheme } from '../hooks/useTheme';
 import { ExpenseFormScreen } from '../screens/ExpenseFormScreen';
@@ -16,10 +20,15 @@ import { navigationRef } from './navigationRef';
 import { TabNavigator } from './TabNavigator';
 import { RootStackParamList } from './types';
 
+// Mirrors TabNavigator's `styles.bar.height` (not shared today — HomeScreen's own undo
+// snackbar keeps its own copy too) so this toast clears the tab bar on screens that have one.
+const TAB_BAR_HEIGHT = 72;
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const initializing = useAuthStore(state => state.initializing);
   const user = useAuthStore(state => state.user);
   const init = useAuthStore(state => state.init);
@@ -30,6 +39,7 @@ export function RootNavigator() {
 
   // Hooks must run unconditionally; they no-op internally until a user is signed in.
   useShareIntent();
+  const { message: recurringMessage, dismiss: dismissRecurringMessage } = useRecurringPosting();
 
   useEffect(() => {
     init();
@@ -49,38 +59,47 @@ export function RootNavigator() {
   }
 
   return (
-    <NavigationContainer ref={navigationRef}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!onboardingSeen ? (
-          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-        ) : user ? (
-          <>
-            <Stack.Screen name="Main" component={TabNavigator} />
-            <Stack.Screen
-              name="ExpenseForm"
-              component={ExpenseFormScreen}
-              options={({ route }) => ({
-                headerShown: true,
-                presentation: 'modal',
-                title: route.params?.receiptScanId
-                  ? 'Tinjau Struk'
-                  : route.params?.expenseId
-                  ? 'Edit Pengeluaran'
-                  : 'Tambah Pengeluaran',
-              })}
-            />
-            <Stack.Screen name="Profile" component={ProfileScreen} />
-            <Stack.Screen
-              name="ManageAccounts"
-              component={ManageAccountsScreen}
-              options={{ headerShown: true, title: 'Kelola Akun' }}
-            />
-          </>
-        ) : (
-          <Stack.Screen name="Login" component={LoginScreen} />
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <>
+      <NavigationContainer ref={navigationRef}>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {!onboardingSeen ? (
+            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+          ) : user ? (
+            <>
+              <Stack.Screen name="Main" component={TabNavigator} />
+              <Stack.Screen
+                name="ExpenseForm"
+                component={ExpenseFormScreen}
+                options={({ route }) => ({
+                  headerShown: true,
+                  presentation: 'modal',
+                  title: route.params?.receiptScanId
+                    ? 'Tinjau Struk'
+                    : route.params?.expenseId
+                    ? 'Edit Pengeluaran'
+                    : 'Tambah Pengeluaran',
+                })}
+              />
+              <Stack.Screen name="Profile" component={ProfileScreen} />
+              <Stack.Screen
+                name="ManageAccounts"
+                component={ManageAccountsScreen}
+                options={{ headerShown: true, title: 'Kelola Akun' }}
+              />
+            </>
+          ) : (
+            <Stack.Screen name="Login" component={LoginScreen} />
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+      {recurringMessage && (
+        <InfoSnackbar
+          message={recurringMessage}
+          onDismiss={dismissRecurringMessage}
+          bottom={insets.bottom + TAB_BAR_HEIGHT + spacing.sm}
+        />
+      )}
+    </>
   );
 }
 

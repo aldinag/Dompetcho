@@ -63,3 +63,17 @@ export async function deleteRecurringTransaction(id: string): Promise<void> {
   const { error } = await supabase.from('recurring_transactions').delete().eq('id', id);
   if (error) throw error;
 }
+
+// Used by `recurringPostingService.ts` right after posting a rule's occurrences — a narrow
+// update of just `last_posted_on`, not a full `updateRecurringTransaction` call, so it can't
+// clobber an edit the user made to the rule's other fields in a race with the posting step.
+export async function markRecurringTransactionPosted(id: string, lastPostedOn: string): Promise<RecurringTransaction> {
+  const { data, error } = await supabase
+    .from('recurring_transactions')
+    .update({ last_posted_on: lastPostedOn })
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}

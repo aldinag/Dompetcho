@@ -23,7 +23,8 @@ export type IconName =
   | 'search'
   | 'close'
   | 'trash'
-  | 'export';
+  | 'export'
+  | 'repeat';
 
 interface IconProps {
   name: IconName;
@@ -64,6 +65,7 @@ const PATHS: Record<IconName, string> = {
   close: 'M6 6l12 12 M18 6 6 18',
   trash: 'M5 7h14 M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2 M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13 M10 11v6 M14 11v6',
   export: 'M12 14V4 M8 7l4-4 4 4 M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4',
+  repeat: 'M17 1l4 4-4 4 M3 11V9a4 4 0 0 1 4-4h14 M7 23l-4-4 4-4 M21 13v2a4 4 0 0 1-4 4H3',
 };
 
 export function Icon({ name, size = 24, color = '#000000', strokeWidth = 2 }: IconProps) {

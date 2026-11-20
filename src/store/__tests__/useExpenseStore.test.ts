@@ -2,6 +2,7 @@ import { useExpenseStore, EXPENSES_PAGE_SIZE } from '../useExpenseStore';
 import { listAccounts } from '../../services/accountService';
 import { listCategories } from '../../services/categoryService';
 import { createExpense, deleteExpense, getExpenseTotals, listExpenses } from '../../services/expenseService';
+import { postDueRecurringTransactions } from '../../services/recurringPostingService';
 import { Category, Expense } from '../../types';
 
 // Explicit factories (not bare `jest.mock(path)`) so the real modules — which pull in
@@ -20,6 +21,7 @@ jest.mock('../../services/expenseService', () => ({
   createExpense: jest.fn(),
   deleteExpense: jest.fn(),
 }));
+jest.mock('../../services/recurringPostingService', () => ({ postDueRecurringTransactions: jest.fn() }));
 
 const mockListExpenses = listExpenses as jest.MockedFunction<typeof listExpenses>;
 const mockListCategories = listCategories as jest.MockedFunction<typeof listCategories>;
@@ -27,6 +29,9 @@ const mockListAccounts = listAccounts as jest.MockedFunction<typeof listAccounts
 const mockGetExpenseTotals = getExpenseTotals as jest.MockedFunction<typeof getExpenseTotals>;
 const mockCreateExpense = createExpense as jest.MockedFunction<typeof createExpense>;
 const mockDeleteExpense = deleteExpense as jest.MockedFunction<typeof deleteExpense>;
+const mockPostDueRecurringTransactions = postDueRecurringTransactions as jest.MockedFunction<
+  typeof postDueRecurringTransactions
+>;
 
 function expense(overrides: Partial<Expense> = {}): Expense {
   return {
@@ -401,5 +406,28 @@ describe('useExpenseStore.restoreExpense', () => {
     expect(state.expenses).toEqual([recreated]);
     expect(state.balance).toBe(26_000);
     expect(state.monthExpense).toBe(12_000);
+  });
+});
+
+describe('useExpenseStore.postDueRecurring', () => {
+  it('refreshes the list/totals when something was posted', async () => {
+    mockPostDueRecurringTransactions.mockResolvedValue(2);
+    mockListExpenses.mockResolvedValue([FAKE_EXPENSE]);
+    mockGetExpenseTotals.mockResolvedValue({ balance: 10, monthIncome: 0, monthExpense: 0 });
+
+    const postedCount = await useExpenseStore.getState().postDueRecurring();
+
+    expect(postedCount).toBe(2);
+    expect(mockListExpenses).toHaveBeenCalled(); // from the follow-up refresh()
+    expect(useExpenseStore.getState().balance).toBe(10);
+  });
+
+  it('does not refresh when nothing was posted', async () => {
+    mockPostDueRecurringTransactions.mockResolvedValue(0);
+
+    const postedCount = await useExpenseStore.getState().postDueRecurring();
+
+    expect(postedCount).toBe(0);
+    expect(mockListExpenses).not.toHaveBeenCalled();
   });
 });
