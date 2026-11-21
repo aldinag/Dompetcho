@@ -278,7 +278,7 @@ touch" above.
 
 ### Smoother UX on existing features
 
-- [ ] **Add form: remember the last category and account.** Opening "Tambah" currently
+- [x] **Add form: remember the last category and account.** Opening "Tambah" currently
       starts blank, so repeat entries cost extra taps. Default the new-expense form's
       category and account (and type) to those of the most recent expense already in the
       Home store; no new storage or dependency. Don't override anything when editing or when
