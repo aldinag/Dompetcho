@@ -286,7 +286,7 @@ touch" above.
       "pick defaults from the latest expense" logic in `src/utils/` with tests (empty
       history, latest has no category/account, deleted category/account).
 
-- [ ] **Add/edit form: inline validation and a delete button.** Replace the "Nominal wajib
+- [x] **Add/edit form: inline validation and a delete button.** Replace the "Nominal wajib
       diisi" `Alert` with an inline error under the amount field (danger color, cleared as
       soon as a valid amount is entered) and keep "Simpan" visually enabled-but-guarded
       rather than silently failing. When editing an existing expense, add a "Hapus" button
