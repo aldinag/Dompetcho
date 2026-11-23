@@ -11,6 +11,7 @@ import { useTheme } from '../hooks/useTheme';
 import { ExpenseFormScreen } from '../screens/ExpenseFormScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { ManageAccountsScreen } from '../screens/ManageAccountsScreen';
+import { ManageRecurringScreen } from '../screens/ManageRecurringScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { useAuthStore } from '../store/useAuthStore';
@@ -85,6 +86,11 @@ export function RootNavigator() {
                 name="ManageAccounts"
                 component={ManageAccountsScreen}
                 options={{ headerShown: true, title: 'Kelola Akun' }}
+              />
+              <Stack.Screen
+                name="ManageRecurring"
+                component={ManageRecurringScreen}
+                options={{ headerShown: true, title: 'Transaksi Berulang' }}
               />
             </>
           ) : (
