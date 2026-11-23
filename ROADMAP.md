@@ -294,7 +294,7 @@ touch" above.
       delete + undo flow as Home's swipe-to-delete — check `HomeScreen` and the store
       before writing any new delete code). Keep every other `Alert` as is.
 
-- [ ] **Summary: tap a category to see its transactions.** In the month list on Summary,
+- [x] **Summary: tap a category to see its transactions.** In the month list on Summary,
       make each category row open Home pre-filtered to that category and that month. Check
       first whether Home's filter state (search + category, from the "Search and filter"
       item) can be seeded through navigation params; if it can't, add the smallest param

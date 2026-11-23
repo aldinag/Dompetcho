@@ -60,6 +60,7 @@ beforeEach(() => {
     loadingMoreExpenses: false,
     searchQuery: '',
     categoryFilterId: null,
+    monthFilterKey: null,
     filtering: false,
     balance: 0,
     monthIncome: 0,
@@ -274,6 +275,35 @@ describe('useExpenseStore search/category filtering', () => {
       noteSearch: 'kopi',
       categoryId: 'c1',
     });
+  });
+
+  it('sets the category and month filter together in a single fetch', async () => {
+    mockListExpenses.mockResolvedValue([FAKE_EXPENSE]);
+
+    await useExpenseStore.getState().setFilterParams({ categoryId: 'c1', monthKey: '2026-09' });
+
+    expect(mockListExpenses).toHaveBeenCalledTimes(1);
+    expect(mockListExpenses).toHaveBeenCalledWith({
+      limit: EXPENSES_PAGE_SIZE,
+      categoryId: 'c1',
+      dateFrom: new Date(2026, 8, 1).toISOString(),
+      dateTo: new Date(2026, 9, 1).toISOString(),
+    });
+    const state = useExpenseStore.getState();
+    expect(state.categoryFilterId).toBe('c1');
+    expect(state.monthFilterKey).toBe('2026-09');
+  });
+
+  it('clearing the combined filter goes back to an unfiltered fetch', async () => {
+    useExpenseStore.setState({ categoryFilterId: 'c1', monthFilterKey: '2026-09' });
+    mockListExpenses.mockResolvedValue([]);
+
+    await useExpenseStore.getState().setFilterParams({ categoryId: null, monthKey: null });
+
+    expect(mockListExpenses).toHaveBeenCalledWith({ limit: EXPENSES_PAGE_SIZE });
+    const state = useExpenseStore.getState();
+    expect(state.categoryFilterId).toBeNull();
+    expect(state.monthFilterKey).toBeNull();
   });
 
   it('discards a stale filter response that resolves after a newer filter change', async () => {

@@ -1,4 +1,5 @@
-import { useNavigation } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -20,17 +21,18 @@ import { ExpenseListItem } from '../components/ExpenseListItem';
 import { Icon } from '../components/Icon';
 import { SwipeableRow } from '../components/SwipeableRow';
 import { UndoSnackbar } from '../components/UndoSnackbar';
+import { categoryLabel } from '../constants/categoryLabels';
 import { tintedShadow } from '../constants/elevation';
 import { radius } from '../constants/radius';
 import { spacing } from '../constants/spacing';
 import { tabularNums, typography } from '../constants/typography';
 import { useStatusBarStyle } from '../hooks/useStatusBarStyle';
 import { useTheme } from '../hooks/useTheme';
-import { RootStackParamList } from '../navigation/types';
+import { RootStackParamList, TabParamList } from '../navigation/types';
 import { useAuthStore } from '../store/useAuthStore';
 import { useExpenseStore } from '../store/useExpenseStore';
 import { Expense } from '../types';
-import { greeting } from '../utils/dateRange';
+import { greeting, monthRangeFromKey } from '../utils/dateRange';
 import { formatRupiah } from '../utils/format';
 import { groupByDay } from '../utils/groupExpenses';
 
@@ -38,18 +40,22 @@ import { groupByDay } from '../utils/groupExpenses';
 const UNDO_WINDOW_MS = 5000;
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+type TabNav = BottomTabNavigationProp<TabParamList, 'Home'>;
 
 export function HomeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   useStatusBarStyle('default');
   const navigation = useNavigation<Nav>();
+  const tabNavigation = useNavigation<TabNav>();
+  const route = useRoute<RouteProp<TabParamList, 'Home'>>();
   const user = useAuthStore(state => state.user);
   const expenses = useExpenseStore(state => state.expenses);
   const hasMoreExpenses = useExpenseStore(state => state.hasMoreExpenses);
   const loadingMoreExpenses = useExpenseStore(state => state.loadingMoreExpenses);
   const categories = useExpenseStore(state => state.categories);
   const categoryFilterId = useExpenseStore(state => state.categoryFilterId);
+  const monthFilterKey = useExpenseStore(state => state.monthFilterKey);
   const balance = useExpenseStore(state => state.balance);
   const monthIncome = useExpenseStore(state => state.monthIncome);
   const monthExpense = useExpenseStore(state => state.monthExpense);
@@ -61,6 +67,7 @@ export function HomeScreen() {
   const loadMoreExpenses = useExpenseStore(state => state.loadMoreExpenses);
   const setSearchQuery = useExpenseStore(state => state.setSearchQuery);
   const setCategoryFilter = useExpenseStore(state => state.setCategoryFilter);
+  const setFilterParams = useExpenseStore(state => state.setFilterParams);
   const deleteExpense = useExpenseStore(state => state.deleteExpense);
   const restoreExpense = useExpenseStore(state => state.restoreExpense);
 
@@ -131,7 +138,37 @@ export function HomeScreen() {
     [setCategoryFilter],
   );
 
-  const isFiltering = searchInput.trim() !== '' || categoryFilterId !== null;
+  // Seeded by navigating here from Summary's "tap a category" (see ROADMAP's "Summary: tap
+  // a category to see its transactions") — applies the category + month filter in one fetch,
+  // then clears the route params so switching tabs away and back doesn't re-apply it.
+  const navFilterCategoryId = route.params?.filterCategoryId;
+  const navFilterMonthKey = route.params?.filterMonthKey;
+  useEffect(() => {
+    if (navFilterCategoryId === undefined && navFilterMonthKey === undefined) return;
+    setFilterParams({
+      categoryId: navFilterCategoryId ?? null,
+      monthKey: navFilterMonthKey ?? null,
+    }).catch((err: any) => {
+      Alert.alert('Gagal memuat data', err?.message ?? 'Silakan coba lagi.');
+    });
+    tabNavigation.setParams({ filterCategoryId: undefined, filterMonthKey: undefined });
+  }, [navFilterCategoryId, navFilterMonthKey, setFilterParams, tabNavigation]);
+
+  const handleClearNavFilter = useCallback(() => {
+    setFilterParams({ categoryId: null, monthKey: null }).catch((err: any) => {
+      Alert.alert('Gagal memuat data', err?.message ?? 'Silakan coba lagi.');
+    });
+  }, [setFilterParams]);
+
+  const navFilterLabel = useMemo(() => {
+    if (!monthFilterKey) return null;
+    const categoryName = categories.find(c => c.id === categoryFilterId)?.name;
+    const kategori = categoryName ? categoryLabel(categoryName) : 'Semua kategori';
+    const bulan = monthRangeFromKey(monthFilterKey).label;
+    return `Filter: ${kategori}, ${bulan}`;
+  }, [monthFilterKey, categoryFilterId, categories]);
+
+  const isFiltering = searchInput.trim() !== '' || categoryFilterId !== null || monthFilterKey !== null;
 
   const handleRefresh = useCallback(() => {
     refresh().catch(() => {});
@@ -246,6 +283,22 @@ export function HomeScreen() {
           </TouchableOpacity>
         )}
       </View>
+
+      {navFilterLabel && (
+        <View style={[styles.navFilterChip, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[styles.navFilterLabel, { color: theme.text }]} numberOfLines={1}>
+            {navFilterLabel}
+          </Text>
+          <TouchableOpacity
+            onPress={handleClearNavFilter}
+            accessibilityRole="button"
+            accessibilityLabel="Hapus filter"
+            hitSlop={8}
+          >
+            <Icon name="close" size={16} color={theme.textMuted} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <CategoryFilterBar categories={categories} selectedId={categoryFilterId} onSelect={handleSelectCategoryFilter} />
     </>
@@ -446,6 +499,23 @@ const styles = StyleSheet.create({
     flex: 1,
     ...typography.body,
     paddingVertical: 0,
+  },
+  navFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    minHeight: 36,
+    borderRadius: radius.md,
+    borderWidth: 1,
+  },
+  navFilterLabel: {
+    ...typography.caption,
+    fontWeight: '600',
+    flexShrink: 1,
   },
   sectionHeader: {
     flexDirection: 'row',
