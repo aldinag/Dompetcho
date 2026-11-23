@@ -253,7 +253,7 @@ touch" above.
       occurrences per call. Unit-test the util hard (month-end clamping, leap year, a rule
       starting in the future, nothing due, the cap, timezone near midnight). No UI yet.
 
-- [ ] **Recurring transactions, step 2 of 3: manage screen.** Add a "Transaksi Berulang" row
+- [x] **Recurring transactions, step 2 of 3: manage screen.** Add a "Transaksi Berulang" row
       on Profile (next to "Kelola Akun") opening a `ManageRecurringScreen`, modelled on
       `ManageAccountsScreen`: a list showing each rule's note/category, amount, "Tiap
       minggu" / "Tiap bulan" plus the next due date, a pause/resume switch, and swipe or
