@@ -176,6 +176,18 @@ export function ProfileScreen() {
           </View>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[styles.card, cardShadow, { backgroundColor: theme.surface }]}
+          onPress={() => navigation.navigate('ManageRecurring')}
+          accessibilityRole="button"
+          accessibilityLabel="Transaksi Berulang"
+        >
+          <View style={styles.navRow}>
+            <Text style={[styles.rowValue, { color: theme.text }]}>Transaksi Berulang</Text>
+            <Icon name="chevron-right" size={20} color={theme.textMuted} />
+          </View>
+        </TouchableOpacity>
+
         <View style={[styles.card, cardShadow, { backgroundColor: theme.surface }]}>
           <View style={styles.navRow}>
             <Text style={[styles.rowValue, { color: theme.text }]}>Ekspor CSV</Text>

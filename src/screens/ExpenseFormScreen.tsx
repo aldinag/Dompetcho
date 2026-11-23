@@ -36,6 +36,7 @@ import { createExpense, updateExpense } from '../services/expenseService';
 import { useAuthStore } from '../store/useAuthStore';
 import { useExpenseStore } from '../store/useExpenseStore';
 import { Expense, ExpenseSource, TransactionType } from '../types';
+import { pickExpenseFormDefaults } from '../utils/expenseFormDefaults';
 import { formatDayHeader } from '../utils/format';
 import { nowTimestamp, withPickedDay } from '../utils/timestamp';
 
@@ -65,23 +66,29 @@ export function ExpenseFormScreen() {
   const editingExpense = isEditFlow ? expenses.find(e => e.id === params!.expenseId) : undefined;
   const defaultCategoryId =
     categories.find(c => c.name === DEFAULT_RECEIPT_CATEGORY_NAME)?.id ?? null;
+  // A brand-new manual entry (not editing, not a receipt import) defaults to the latest
+  // expense's category/account/type instead of starting blank — see ROADMAP's "Add form:
+  // remember the last category and account".
+  const latestExpenseDefaults = pickExpenseFormDefaults(expenses, categories, accounts);
 
   const [amount, setAmount] = useState<number | null>(
     editingExpense ? Number(editingExpense.amount) : params?.prefill?.amount ?? null,
   );
   const [date, setDate] = useState<string>(editingExpense?.date ?? params?.prefill?.date ?? nowTimestamp());
   const [categoryId, setCategoryId] = useState<string | null>(
-    editingExpense ? editingExpense.category_id : isReceiptFlow ? defaultCategoryId : null,
+    editingExpense ? editingExpense.category_id : isReceiptFlow ? defaultCategoryId : latestExpenseDefaults.categoryId,
   );
   const [accountId, setAccountId] = useState<string | null>(
-    editingExpense ? editingExpense.account_id : params?.prefill?.accountId ?? null,
+    editingExpense ? editingExpense.account_id : params?.prefill?.accountId ?? latestExpenseDefaults.accountId,
   );
   const [note, setNote] = useState<string>(
     editingExpense?.note ?? params?.prefill?.note ?? params?.prefill?.recipientName ?? '',
   );
   // Receipts are always an outgoing transfer — the toggle only makes sense for manual entry
   // and editing.
-  const [type, setType] = useState<TransactionType>(editingExpense?.type ?? 'expense');
+  const [type, setType] = useState<TransactionType>(
+    editingExpense ? editingExpense.type : isReceiptFlow ? 'expense' : latestExpenseDefaults.type,
+  );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [saving, setSaving] = useState(false);
   const [amountError, setAmountError] = useState<string | null>(null);
@@ -92,15 +99,16 @@ export function ExpenseFormScreen() {
     if (value !== null && value > 0) setAmountError(null);
   }
 
-  function resetForm() {
+  const resetForm = useCallback(() => {
+    const defaults = pickExpenseFormDefaults(expenses, categories, accounts);
     setAmount(null);
     setDate(nowTimestamp());
-    setCategoryId(null);
-    setAccountId(null);
+    setCategoryId(defaults.categoryId);
+    setAccountId(defaults.accountId);
     setNote('');
-    setType('expense');
+    setType(defaults.type);
     setAmountError(null);
-  }
+  }, [expenses, categories, accounts]);
 
   // The "Add" tab reuses this same screen with no params — clear any leftover state
   // from a previous manual entry each time the tab regains focus. Skipped for edit (its
@@ -108,7 +116,7 @@ export function ExpenseFormScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!isReceiptFlow && !isEditFlow) resetForm();
-    }, [isReceiptFlow, isEditFlow]),
+    }, [isReceiptFlow, isEditFlow, resetForm]),
   );
 
   // Defends against a stale/bad expenseId (e.g. the row was removed elsewhere between

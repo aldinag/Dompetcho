@@ -253,7 +253,7 @@ touch" above.
       occurrences per call. Unit-test the util hard (month-end clamping, leap year, a rule
       starting in the future, nothing due, the cap, timezone near midnight). No UI yet.
 
-- [ ] **Recurring transactions, step 2 of 3: manage screen.** Add a "Transaksi Berulang" row
+- [x] **Recurring transactions, step 2 of 3: manage screen.** Add a "Transaksi Berulang" row
       on Profile (next to "Kelola Akun") opening a `ManageRecurringScreen`, modelled on
       `ManageAccountsScreen`: a list showing each rule's note/category, amount, "Tiap
       minggu" / "Tiap bulan" plus the next due date, a pause/resume switch, and swipe or
@@ -278,7 +278,7 @@ touch" above.
 
 ### Smoother UX on existing features
 
-- [ ] **Add form: remember the last category and account.** Opening "Tambah" currently
+- [x] **Add form: remember the last category and account.** Opening "Tambah" currently
       starts blank, so repeat entries cost extra taps. Default the new-expense form's
       category and account (and type) to those of the most recent expense already in the
       Home store; no new storage or dependency. Don't override anything when editing or when
