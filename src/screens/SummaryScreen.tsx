@@ -1,3 +1,5 @@
+import { useNavigation } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,6 +12,7 @@ import { spacing } from '../constants/spacing';
 import { tabularNums, typography } from '../constants/typography';
 import { useStatusBarStyle } from '../hooks/useStatusBarStyle';
 import { useTheme } from '../hooks/useTheme';
+import { TabParamList } from '../navigation/types';
 import { clearCategoryBudget, listCategoryBudgets, setCategoryBudget } from '../services/budgetService';
 import { getExpenseBreakdownByMonth, MonthlyExpenseBreakdown } from '../services/expenseService';
 import { useAuthStore } from '../store/useAuthStore';
@@ -18,9 +21,12 @@ import { budgetProgress, formatBudgetProgressLabel } from '../utils/budgetProgre
 import { formatRupiah } from '../utils/format';
 import { BreakdownMode, buildMonthSections } from '../utils/summaryBreakdown';
 
+type Nav = BottomTabNavigationProp<TabParamList, 'Summary'>;
+
 export function SummaryScreen() {
   const theme = useTheme();
   useStatusBarStyle('default');
+  const navigation = useNavigation<Nav>();
   const user = useAuthStore(state => state.user);
   // The breakdown below covers every expense ever recorded (grouped by month), but as an
   // already-aggregated RPC result rather than every raw expense row — see ROADMAP's "Move the
@@ -92,6 +98,17 @@ export function SummaryScreen() {
       setSavingBudget(false);
     }
   }
+
+  // Navigates Home pre-filtered to this category and month — see ROADMAP's "Summary: tap a
+  // category to see its transactions". Only real categories (not the synthetic
+  // "uncategorized" row, same exclusion as the budget feature above) since Home's filter has
+  // no way to express "no category".
+  const handleCategoryPress = useCallback(
+    (categoryId: string, monthKey: string) => {
+      navigation.navigate('Home', { filterCategoryId: categoryId, filterMonthKey: monthKey });
+    },
+    [navigation],
+  );
 
   const sections = useMemo(() => buildMonthSections(breakdownRows, mode), [breakdownRows, mode]);
   const overallTotal = useMemo(() => sections.reduce((sum, s) => sum + s.total, 0), [sections]);
@@ -217,10 +234,23 @@ export function SummaryScreen() {
           const progressColor = progress
             ? { neutral: theme.primary, warning: theme.warning, danger: theme.danger }[progress.status]
             : theme.primary;
+          // Only real category rows navigate to Home — kept as a separate tap target from the
+          // "Ubah anggaran" link below, which lives outside this wrapper.
+          const canNavigateToHome = mode === 'category' && item.id !== 'uncategorized';
+          const RowWrapper = canNavigateToHome ? TouchableOpacity : View;
 
           return (
             <View style={styles.itemContainer}>
-              <View style={styles.listRow}>
+              <RowWrapper
+                style={styles.listRow}
+                {...(canNavigateToHome
+                  ? {
+                      onPress: () => handleCategoryPress(item.id, section.key),
+                      accessibilityRole: 'button' as const,
+                      accessibilityLabel: `Lihat transaksi ${item.label}, ${section.title}`,
+                    }
+                  : {})}
+              >
                 <View style={styles.listLeft}>
                   {item.icon ? (
                     <View style={[styles.iconBadge, { backgroundColor: `${item.color}26` }]}>
@@ -236,7 +266,7 @@ export function SummaryScreen() {
                 <Text style={[styles.listAmount, tabularNums, { color: theme.textMuted }]}>
                   {formatRupiah(item.amount)}
                 </Text>
-              </View>
+              </RowWrapper>
 
               {canBudget && !isEditing && (
                 <View style={styles.budgetBlock}>
