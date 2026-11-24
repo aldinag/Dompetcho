@@ -263,7 +263,7 @@ touch" above.
       `EmptyState` explaining the feature in one sentence. UI text in Bahasa Indonesia.
       Don't post anything yet — this step only creates and edits rules.
 
-- [ ] **Recurring transactions, step 3 of 3: post due items on app open.** When the user is
+- [x] **Recurring transactions, step 3 of 3: post due items on app open.** When the user is
       signed in and the app starts or returns to the foreground (`AppState`), fetch active
       rules, compute due occurrences with the step-1 util, and insert them as normal
       expenses (`source = 'recurring'`, with `recurring_id` + `occurrence_date`), then update

@@ -7,6 +7,7 @@ import {
   getExpenseTotals,
   listExpenses,
 } from '../services/expenseService';
+import { postDueRecurringTransactions } from '../services/recurringPostingService';
 import { Account, AccountKind, Category, Expense } from '../types';
 import { currentMonthRange, monthRangeFromKey } from '../utils/dateRange';
 import { isNetworkError } from '../utils/networkError';
@@ -58,6 +59,9 @@ interface ExpenseState {
   addAccount: (userId: string, name: string, kind: AccountKind) => Promise<void>;
   renameAccount: (id: string, name: string, kind: AccountKind) => Promise<void>;
   removeAccount: (id: string) => Promise<void>;
+  /** Posts due recurring transactions, then refreshes the list/totals if anything was
+   *  posted. Returns how many rows were newly inserted — see `recurringPostingService.ts`. */
+  postDueRecurring: () => Promise<number>;
   /** Clears everything loaded for the previous user — called after account deletion. */
   reset: () => void;
 }
@@ -319,6 +323,12 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
   removeAccount: async id => {
     await deleteAccount(id);
     set(state => ({ accounts: state.accounts.filter(a => a.id !== id) }));
+  },
+
+  postDueRecurring: async () => {
+    const postedCount = await postDueRecurringTransactions();
+    if (postedCount > 0) await get().refresh();
+    return postedCount;
   },
 
   reset: () =>
