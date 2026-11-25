@@ -302,7 +302,7 @@ touch" above.
       The balance/month cards on Home must stay unfiltered. Keep the budget "Ubah anggaran"
       tap target separate so tapping it doesn't navigate.
 
-- [ ] **Summary: compare with last month.** Under the selected month's total expense, show
+- [x] **Summary: compare with last month.** Under the selected month's total expense, show
       a one-line comparison with the previous month ("Rp 250.000 lebih hemat dari bulan
       lalu" in the success color / "Rp 120.000 lebih boros…" in the danger color; hide it
       when the previous month has no data), and the same small delta per category row. Reuse

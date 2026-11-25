@@ -19,6 +19,13 @@ import { useAuthStore } from '../store/useAuthStore';
 import { CategoryBudget } from '../types';
 import { budgetProgress, formatBudgetProgressLabel } from '../utils/budgetProgress';
 import { formatRupiah } from '../utils/format';
+import {
+  CategoryDelta,
+  formatCategoryDeltaLabel,
+  formatMonthDeltaLabel,
+  monthCategoryDeltas,
+  monthTotalDelta,
+} from '../utils/monthComparison';
 import { BreakdownMode, buildMonthSections } from '../utils/summaryBreakdown';
 
 type Nav = BottomTabNavigationProp<TabParamList, 'Summary'>;
@@ -130,6 +137,20 @@ export function SummaryScreen() {
     setChartMonthIndex(i => Math.max(i - 1, 0));
   }, []);
 
+  // See ROADMAP's "Summary: compare with last month" — reuses `breakdownRows` already loaded
+  // above, no extra query. Both are null/empty when the previous calendar month has no data.
+  const totalDelta = useMemo(
+    () => (chartSection ? monthTotalDelta(breakdownRows, chartSection.key) : null),
+    [breakdownRows, chartSection],
+  );
+  const categoryDeltas = useMemo(
+    () => (chartSection ? monthCategoryDeltas(breakdownRows, chartSection.key) : new Map<string, CategoryDelta>()),
+    [breakdownRows, chartSection],
+  );
+  const totalDeltaColor = totalDelta
+    ? { less: theme.success, more: theme.danger, same: theme.textMuted }[totalDelta.direction]
+    : theme.textMuted;
+
   const listHeader = (
     <>
       <Text style={[styles.heading, { color: theme.text }]}>Ringkasan</Text>
@@ -211,6 +232,9 @@ export function SummaryScreen() {
               ))}
             </View>
           </View>
+          {totalDelta ? (
+            <Text style={[styles.deltaText, { color: totalDeltaColor }]}>{formatMonthDeltaLabel(totalDelta)}</Text>
+          ) : null}
         </View>
       ) : null}
     </>
@@ -238,6 +262,13 @@ export function SummaryScreen() {
           // "Ubah anggaran" link below, which lives outside this wrapper.
           const canNavigateToHome = mode === 'category' && item.id !== 'uncategorized';
           const RowWrapper = canNavigateToHome ? TouchableOpacity : View;
+          // Same scope as the budget block above — only the chart's selected month, category
+          // mode only (see ROADMAP's "Summary: compare with last month").
+          const categoryDelta =
+            mode === 'category' && section.key === chartSection?.key ? categoryDeltas.get(item.id) : undefined;
+          const categoryDeltaColor = categoryDelta
+            ? { less: theme.success, more: theme.danger, same: theme.textMuted }[categoryDelta.direction]
+            : theme.textMuted;
 
           return (
             <View style={styles.itemContainer}>
@@ -263,9 +294,16 @@ export function SummaryScreen() {
                     {item.label}
                   </Text>
                 </View>
-                <Text style={[styles.listAmount, tabularNums, { color: theme.textMuted }]}>
-                  {formatRupiah(item.amount)}
-                </Text>
+                <View style={styles.listAmountColumn}>
+                  <Text style={[styles.listAmount, tabularNums, { color: theme.textMuted }]}>
+                    {formatRupiah(item.amount)}
+                  </Text>
+                  {categoryDelta ? (
+                    <Text style={[styles.categoryDeltaText, tabularNums, { color: categoryDeltaColor }]}>
+                      {formatCategoryDeltaLabel(categoryDelta)}
+                    </Text>
+                  ) : null}
+                </View>
               </RowWrapper>
 
               {canBudget && !isEditing && (
@@ -404,6 +442,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  deltaText: { ...typography.caption, textAlign: 'center', marginTop: spacing.xs },
   legend: {
     flex: 1,
     marginLeft: spacing.md,
@@ -462,7 +501,9 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   listLabel: { ...typography.h2, flexShrink: 1 },
+  listAmountColumn: { alignItems: 'flex-end' },
   listAmount: { ...typography.h2, fontWeight: '400' },
+  categoryDeltaText: { ...typography.caption, fontWeight: '600' },
   budgetBlock: {
     marginLeft: 36 + spacing.sm, // align under the label, past the icon badge
     marginBottom: spacing.xs,
