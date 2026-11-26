@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ErrorState } from '../components/ErrorState';
 import { cardShadow } from '../constants/elevation';
 import { radius } from '../constants/radius';
 import { spacing } from '../constants/spacing';
@@ -24,6 +25,11 @@ export function ManageAccountsScreen() {
   const user = useAuthStore(state => state.user);
   const accounts = useExpenseStore(state => state.accounts);
   const loading = useExpenseStore(state => state.loading);
+  // Shared with Home's own loadInitial — see ROADMAP's "Consistent error handling on Summary
+  // and Kelola Akun": a failed load now shows the same inline retry state instead of an Alert
+  // that left the list sitting blank.
+  const loadError = useExpenseStore(state => state.error);
+  const isOffline = useExpenseStore(state => state.isOffline);
   const addAccount = useExpenseStore(state => state.addAccount);
   const renameAccount = useExpenseStore(state => state.renameAccount);
   const removeAccount = useExpenseStore(state => state.removeAccount);
@@ -31,12 +37,14 @@ export function ManageAccountsScreen() {
 
   useEffect(() => {
     if (accounts.length === 0) {
-      loadInitial().catch((error: any) => {
-        Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
-      });
+      loadInitial().catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleRetry = useCallback(() => {
+    loadInitial().catch(() => {});
+  }, [loadInitial]);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -141,6 +149,12 @@ export function ManageAccountsScreen() {
         ListEmptyComponent={
           loading ? (
             <ActivityIndicator style={styles.emptyState} color={theme.primary} />
+          ) : loadError ? (
+            <ErrorState
+              message={isOffline ? 'Tidak ada koneksi. Periksa koneksi internet, lalu coba lagi.' : loadError}
+              onRetry={handleRetry}
+              retryAccessibilityLabel="Coba lagi memuat akun"
+            />
           ) : (
             <Text style={[styles.emptyText, { color: theme.textMuted }]}>
               Belum ada akun. Tambahkan akun pertama di bawah — mis. "Mandiri", "GoPay", atau "Tunai".

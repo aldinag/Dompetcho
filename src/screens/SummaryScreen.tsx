@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, RefreshControl, SectionList, StyleSheet, Text
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AmountInput } from '../components/AmountInput';
 import { CategoryDonutChart } from '../components/CategoryDonutChart';
+import { ErrorState } from '../components/ErrorState';
 import { Icon } from '../components/Icon';
 import { cardShadow } from '../constants/elevation';
 import { radius } from '../constants/radius';
@@ -19,6 +20,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { CategoryBudget } from '../types';
 import { budgetProgress, formatBudgetProgressLabel } from '../utils/budgetProgress';
 import { formatRupiah } from '../utils/format';
+import { isNetworkError } from '../utils/networkError';
 import { BreakdownMode, buildMonthSections } from '../utils/summaryBreakdown';
 
 type Nav = BottomTabNavigationProp<TabParamList, 'Summary'>;
@@ -35,29 +37,42 @@ export function SummaryScreen() {
   const [budgets, setBudgets] = useState<CategoryBudget[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [mode, setMode] = useState<BreakdownMode>('category');
+  // The breakdown fetch is what leaves the list blank on failure (see ROADMAP's "Consistent
+  // error handling on Summary and Kelola Akun") — tracked separately from the budgets fetch
+  // below, which only loses the per-category limit display and keeps using an Alert.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
+
+  const loadBreakdown = useCallback(() => {
+    return getExpenseBreakdownByMonth()
+      .then(rows => {
+        setBreakdownRows(rows);
+        setLoadError(null);
+        setIsOffline(false);
+      })
+      .catch((error: any) => {
+        setLoadError(error?.message ?? 'Silakan coba lagi.');
+        setIsOffline(isNetworkError(error));
+      });
+  }, []);
+
+  const loadBudgets = useCallback(() => {
+    return listCategoryBudgets()
+      .then(setBudgets)
+      .catch((error: any) => {
+        Alert.alert('Gagal memuat anggaran', error?.message ?? 'Silakan coba lagi.');
+      });
+  }, []);
 
   useEffect(() => {
-    getExpenseBreakdownByMonth().then(setBreakdownRows).catch((error: any) => {
-      Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
-    });
-    listCategoryBudgets().catch((error: any) => {
-      Alert.alert('Gagal memuat anggaran', error?.message ?? 'Silakan coba lagi.');
-      return [];
-    }).then(result => result && setBudgets(result));
-  }, []);
+    loadBreakdown();
+    loadBudgets();
+  }, [loadBreakdown, loadBudgets]);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    Promise.all([getExpenseBreakdownByMonth(), listCategoryBudgets()])
-      .then(([rows, budgetRows]) => {
-        setBreakdownRows(rows);
-        setBudgets(budgetRows);
-      })
-      .catch((error: any) => {
-        Alert.alert('Gagal memuat data', error?.message ?? 'Silakan coba lagi.');
-      })
-      .finally(() => setRefreshing(false));
-  }, []);
+    Promise.all([loadBreakdown(), loadBudgets()]).finally(() => setRefreshing(false));
+  }, [loadBreakdown, loadBudgets]);
 
   const budgetByCategoryId = useMemo(() => {
     const map = new Map<string, CategoryBudget>();
@@ -345,7 +360,15 @@ export function SummaryScreen() {
         )}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.primary} />}
         ListEmptyComponent={
-          <Text style={[styles.empty, { color: theme.textMuted }]}>Belum ada pengeluaran.</Text>
+          loadError ? (
+            <ErrorState
+              message={isOffline ? 'Tidak ada koneksi. Periksa koneksi internet, lalu coba lagi.' : loadError}
+              onRetry={loadBreakdown}
+              retryAccessibilityLabel="Coba lagi memuat ringkasan"
+            />
+          ) : (
+            <Text style={[styles.empty, { color: theme.textMuted }]}>Belum ada pengeluaran.</Text>
+          )
         }
         contentContainerStyle={[styles.listContent, sections.length === 0 && styles.emptyContent]}
         ListHeaderComponent={listHeader}
