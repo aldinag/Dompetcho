@@ -57,6 +57,7 @@ export function ExpenseFormScreen() {
   const addExpenseOptimistic = useExpenseStore(state => state.addExpenseOptimistic);
   const replaceExpense = useExpenseStore(state => state.replaceExpense);
   const removeExpense = useExpenseStore(state => state.removeExpense);
+  const deleteExpenseWithUndo = useExpenseStore(state => state.deleteExpenseWithUndo);
 
   const isReceiptFlow = !!params?.receiptScanId;
   const isEditFlow = !!params?.expenseId;
@@ -90,7 +91,13 @@ export function ExpenseFormScreen() {
   );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [amountError, setAmountError] = useState<string | null>(null);
   const processReceiptImage = useReceiptProcessor();
+
+  function handleAmountChange(value: number | null) {
+    setAmount(value);
+    if (value !== null && value > 0) setAmountError(null);
+  }
 
   const resetForm = useCallback(() => {
     const defaults = pickExpenseFormDefaults(expenses, categories, accounts);
@@ -100,6 +107,7 @@ export function ExpenseFormScreen() {
     setAccountId(defaults.accountId);
     setNote('');
     setType(defaults.type);
+    setAmountError(null);
   }, [expenses, categories, accounts]);
 
   // The "Add" tab reuses this same screen with no params — clear any leftover state
@@ -126,7 +134,7 @@ export function ExpenseFormScreen() {
   async function handleSave() {
     if (!user) return;
     if (amount === null || amount <= 0) {
-      Alert.alert('Nominal wajib diisi', 'Masukkan nominal sebelum menyimpan.');
+      setAmountError('Nominal wajib diisi');
       return;
     }
 
@@ -234,6 +242,24 @@ export function ExpenseFormScreen() {
     ]);
   }
 
+  function handleDelete() {
+    if (!editingExpense) return;
+    const expense = editingExpense;
+    Alert.alert('Hapus pengeluaran?', 'Transaksi ini akan dihapus secara permanen.', [
+      { text: 'Batal', style: 'cancel' },
+      {
+        text: 'Hapus',
+        style: 'destructive',
+        onPress: () => {
+          deleteExpenseWithUndo(expense).catch((error: any) => {
+            Alert.alert('Gagal menghapus pengeluaran', error?.message ?? 'Silakan coba lagi.');
+          });
+          navigation.goBack();
+        },
+      },
+    ]);
+  }
+
   async function handleDiscard() {
     if (!params?.receiptScanId) return;
     Alert.alert('Buang struk?', 'Tidak akan ada pengeluaran yang dibuat dari struk ini.', [
@@ -287,7 +313,10 @@ export function ExpenseFormScreen() {
             </View>
           )}
 
-          <AmountInput value={amount} onChangeValue={setAmount} autoFocus={!isReceiptFlow && !isEditFlow} />
+          <AmountInput value={amount} onChangeValue={handleAmountChange} autoFocus={!isReceiptFlow && !isEditFlow} />
+          {amountError && (
+            <Text style={[styles.amountError, { color: theme.danger }]}>{amountError}</Text>
+          )}
 
           {!isReceiptFlow && (
             <View style={[styles.typeToggle, { borderColor: theme.border }]}>
@@ -384,6 +413,16 @@ export function ExpenseFormScreen() {
               <Text style={{ color: theme.danger, fontWeight: '700' }}>Buang</Text>
             </TouchableOpacity>
           )}
+          {isEditFlow && (
+            <TouchableOpacity
+              style={[styles.button, styles.discardButton, { borderColor: theme.danger }]}
+              onPress={handleDelete}
+              accessibilityRole="button"
+              accessibilityLabel="Hapus"
+            >
+              <Text style={[styles.discardButtonText, { color: theme.danger }]}>Hapus</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={[styles.button, styles.saveButton, { backgroundColor: theme.primary }, saving && styles.buttonDisabled]}
             onPress={handleSave}
@@ -442,6 +481,12 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 18,
     fontWeight: '600',
+  },
+  amountError: {
+    ...typography.caption,
+    fontWeight: '600',
+    marginHorizontal: spacing.md,
+    marginTop: spacing['2xs'],
   },
   typeToggle: {
     flexDirection: 'row',
@@ -518,6 +563,9 @@ const styles = StyleSheet.create({
   },
   discardButton: {
     borderWidth: 1,
+  },
+  discardButtonText: {
+    fontWeight: '700',
   },
   saveButton: {
     flex: 2,

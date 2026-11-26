@@ -16,6 +16,11 @@ import { isNetworkError } from '../utils/networkError';
 // the app — see ROADMAP's "Add pagination to listExpenses".
 export const EXPENSES_PAGE_SIZE = 30;
 
+// How long the "Dihapus — Urungkan" snackbar stays up before a delete becomes final. Shared
+// by every entry point that can delete an expense (Home's swipe, the edit form's "Hapus"
+// button), so the undo window behaves identically regardless of where the delete started.
+export const UNDO_WINDOW_MS = 5000;
+
 interface ExpenseState {
   expenses: Expense[];
   hasMoreExpenses: boolean;
@@ -56,6 +61,15 @@ interface ExpenseState {
   /** Re-creates `expense` with the same values — used by the "Urungkan" undo snackbar after a
    *  delete has already gone through (there's no soft-delete column to simply un-set). */
   restoreExpense: (expense: Expense) => Promise<void>;
+  /** The expense from the most recent delete, while its "Urungkan" window is still open —
+   *  shared so any screen that can delete an expense (Home's swipe, the edit form's "Hapus"
+   *  button) shows the same undo snackbar after it. */
+  pendingUndo: Expense | null;
+  /** Starts `deleteExpense` and opens the undo window; only one delete can be pending undo
+   *  at a time (same convention Home's swipe already used). */
+  deleteExpenseWithUndo: (expense: Expense) => Promise<void>;
+  /** Restores whatever's currently in `pendingUndo`, if anything. */
+  undoPendingDelete: () => Promise<void>;
   addAccount: (userId: string, name: string, kind: AccountKind) => Promise<void>;
   renameAccount: (id: string, name: string, kind: AccountKind) => Promise<void>;
   removeAccount: (id: string) => Promise<void>;
@@ -123,6 +137,9 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Silakan coba lagi.';
 }
 
+// Not store state on purpose — it's a side-effect handle, not something any screen renders.
+let undoTimer: ReturnType<typeof setTimeout> | null = null;
+
 export const useExpenseStore = create<ExpenseState>((set, get) => ({
   expenses: [],
   hasMoreExpenses: false,
@@ -140,6 +157,7 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
   refreshing: false,
   error: null,
   isOffline: false,
+  pendingUndo: null,
 
   loadInitial: async () => {
     if (get().loading) return;
@@ -306,6 +324,21 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     }));
   },
 
+  deleteExpenseWithUndo: async expense => {
+    if (undoTimer) clearTimeout(undoTimer);
+    set({ pendingUndo: expense });
+    undoTimer = setTimeout(() => set({ pendingUndo: null }), UNDO_WINDOW_MS);
+    await get().deleteExpense(expense);
+  },
+
+  undoPendingDelete: async () => {
+    const expense = get().pendingUndo;
+    if (!expense) return;
+    if (undoTimer) clearTimeout(undoTimer);
+    set({ pendingUndo: null });
+    await get().restoreExpense(expense);
+  },
+
   addAccount: async (userId, name, kind) => {
     const account = await createAccount(userId, name, kind);
     set(state => ({ accounts: [...state.accounts, account].sort((a, b) => a.name.localeCompare(b.name)) }));
@@ -331,7 +364,8 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     return postedCount;
   },
 
-  reset: () =>
+  reset: () => {
+    if (undoTimer) clearTimeout(undoTimer);
     set({
       expenses: [],
       hasMoreExpenses: false,
@@ -349,5 +383,7 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       refreshing: false,
       error: null,
       isOffline: false,
-    }),
+      pendingUndo: null,
+    });
+  },
 }));

@@ -76,6 +76,7 @@ beforeEach(() => {
     refreshing: false,
     error: null,
     isOffline: false,
+    pendingUndo: null,
   });
 });
 
@@ -436,6 +437,66 @@ describe('useExpenseStore.restoreExpense', () => {
     expect(state.expenses).toEqual([recreated]);
     expect(state.balance).toBe(26_000);
     expect(state.monthExpense).toBe(12_000);
+  });
+});
+
+describe('useExpenseStore.deleteExpenseWithUndo / undoPendingDelete', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
+  });
+
+  it('sets pendingUndo immediately and deletes on the server, shared by any caller', async () => {
+    const toDelete = expense({ id: 'e10', amount: 12_000, type: 'expense' });
+    useExpenseStore.setState({ expenses: [toDelete], balance: 50_000, monthIncome: 0, monthExpense: 12_000 });
+    mockDeleteExpense.mockResolvedValue(undefined);
+
+    await useExpenseStore.getState().deleteExpenseWithUndo(toDelete);
+
+    const state = useExpenseStore.getState();
+    expect(state.pendingUndo).toEqual(toDelete);
+    expect(state.expenses).toEqual([]);
+    expect(mockDeleteExpense).toHaveBeenCalledWith('e10');
+  });
+
+  it('restores the pending expense and clears pendingUndo', async () => {
+    const toDelete = expense({ id: 'e11', amount: 12_000, type: 'expense' });
+    const recreated = expense({ id: 'e11-new', amount: 12_000, type: 'expense' });
+    useExpenseStore.setState({ expenses: [], balance: 38_000, monthIncome: 0, monthExpense: 0 });
+    mockDeleteExpense.mockResolvedValue(undefined);
+    mockCreateExpense.mockResolvedValue(recreated);
+
+    await useExpenseStore.getState().deleteExpenseWithUndo(toDelete);
+    await useExpenseStore.getState().undoPendingDelete();
+
+    const state = useExpenseStore.getState();
+    expect(state.pendingUndo).toBeNull();
+    expect(state.expenses).toEqual([recreated]);
+  });
+
+  it('does nothing when nothing is pending undo', async () => {
+    useExpenseStore.setState({ expenses: [], pendingUndo: null });
+
+    await useExpenseStore.getState().undoPendingDelete();
+
+    expect(mockCreateExpense).not.toHaveBeenCalled();
+    expect(useExpenseStore.getState().expenses).toEqual([]);
+  });
+
+  it('replaces a still-pending undo when a second delete starts before it is undone', async () => {
+    const first = expense({ id: 'e12', amount: 10_000 });
+    const second = expense({ id: 'e13', amount: 20_000 });
+    useExpenseStore.setState({ expenses: [first, second], balance: 0, monthIncome: 0, monthExpense: 0 });
+    mockDeleteExpense.mockResolvedValue(undefined);
+
+    await useExpenseStore.getState().deleteExpenseWithUndo(first);
+    await useExpenseStore.getState().deleteExpenseWithUndo(second);
+
+    expect(useExpenseStore.getState().pendingUndo).toEqual(second);
   });
 });
 

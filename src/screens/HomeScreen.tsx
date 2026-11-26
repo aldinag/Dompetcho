@@ -36,9 +36,6 @@ import { greeting, monthRangeFromKey } from '../utils/dateRange';
 import { formatRupiah } from '../utils/format';
 import { groupByDay } from '../utils/groupExpenses';
 
-// How long the "Dihapus — Urungkan" snackbar stays up before the delete becomes final.
-const UNDO_WINDOW_MS = 5000;
-
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type TabNav = BottomTabNavigationProp<TabParamList, 'Home'>;
 
@@ -67,41 +64,25 @@ export function HomeScreen() {
   const loadMoreExpenses = useExpenseStore(state => state.loadMoreExpenses);
   const setSearchQuery = useExpenseStore(state => state.setSearchQuery);
   const setCategoryFilter = useExpenseStore(state => state.setCategoryFilter);
+  const pendingUndo = useExpenseStore(state => state.pendingUndo);
+  const deleteExpenseWithUndo = useExpenseStore(state => state.deleteExpenseWithUndo);
+  const undoPendingDelete = useExpenseStore(state => state.undoPendingDelete);
   const setFilterParams = useExpenseStore(state => state.setFilterParams);
-  const deleteExpense = useExpenseStore(state => state.deleteExpense);
-  const restoreExpense = useExpenseStore(state => state.restoreExpense);
-
-  // Only one row's deletion can be pending undo at a time — swiping another row's delete
-  // while one is already pending just replaces it (the previous one has already been sent to
-  // the server by then, so it isn't lost, only its chance to be undone).
-  const [pendingUndo, setPendingUndo] = useState<Expense | null>(null);
-  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => () => {
-    if (undoTimer.current) clearTimeout(undoTimer.current);
-  }, []);
 
   const handleDeleteExpense = useCallback(
     (expense: Expense) => {
-      deleteExpense(expense).catch((error: any) => {
+      deleteExpenseWithUndo(expense).catch((error: any) => {
         Alert.alert('Gagal menghapus pengeluaran', error?.message ?? 'Silakan coba lagi.');
       });
-      if (undoTimer.current) clearTimeout(undoTimer.current);
-      setPendingUndo(expense);
-      undoTimer.current = setTimeout(() => setPendingUndo(null), UNDO_WINDOW_MS);
     },
-    [deleteExpense],
+    [deleteExpenseWithUndo],
   );
 
   const handleUndoDelete = useCallback(() => {
-    if (!pendingUndo) return;
-    if (undoTimer.current) clearTimeout(undoTimer.current);
-    const expense = pendingUndo;
-    setPendingUndo(null);
-    restoreExpense(expense).catch((error: any) => {
+    undoPendingDelete().catch((error: any) => {
       Alert.alert('Gagal mengurungkan', error?.message ?? 'Silakan coba lagi.');
     });
-  }, [pendingUndo, restoreExpense]);
+  }, [undoPendingDelete]);
 
   // loadInitial/refresh/loadMoreExpenses no longer need an Alert on failure — their error
   // (and whether it looked like a connectivity problem) lands in the store instead, and the
