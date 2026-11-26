@@ -7,8 +7,9 @@ import {
   getExpenseTotals,
   listExpenses,
 } from '../services/expenseService';
+import { postDueRecurringTransactions } from '../services/recurringPostingService';
 import { Account, AccountKind, Category, Expense } from '../types';
-import { currentMonthRange } from '../utils/dateRange';
+import { currentMonthRange, monthRangeFromKey } from '../utils/dateRange';
 import { isNetworkError } from '../utils/networkError';
 
 // Keeps Home's "Transaksi Terakhir" fetch bounded regardless of how long someone has used
@@ -27,6 +28,9 @@ interface ExpenseState {
   /** Committed (debounced) search text — empty string means no search filter. */
   searchQuery: string;
   categoryFilterId: string | null;
+  /** "YYYY-MM" month filter, seeded by navigating here from Summary's "tap a category" — see
+   *  ROADMAP's "Summary: tap a category to see its transactions". Null means no month filter. */
+  monthFilterKey: string | null;
   filtering: boolean;
   balance: number;
   monthIncome: number;
@@ -46,6 +50,9 @@ interface ExpenseState {
   applyFilters: () => Promise<void>;
   setSearchQuery: (query: string) => Promise<void>;
   setCategoryFilter: (categoryId: string | null) => Promise<void>;
+  /** Sets the category and month filter together in one fetch — used when navigating here
+   *  from Summary's "tap a category" instead of two separate filter changes. */
+  setFilterParams: (params: { categoryId: string | null; monthKey: string | null }) => Promise<void>;
   addExpenseOptimistic: (expense: Expense) => void;
   replaceExpense: (tempId: string, real: Expense) => void;
   removeExpense: (id: string) => void;
@@ -66,6 +73,9 @@ interface ExpenseState {
   addAccount: (userId: string, name: string, kind: AccountKind) => Promise<void>;
   renameAccount: (id: string, name: string, kind: AccountKind) => Promise<void>;
   removeAccount: (id: string) => Promise<void>;
+  /** Posts due recurring transactions, then refreshes the list/totals if anything was
+   *  posted. Returns how many rows were newly inserted — see `recurringPostingService.ts`. */
+  postDueRecurring: () => Promise<number>;
   /** Clears everything loaded for the previous user — called after account deletion. */
   reset: () => void;
 }
@@ -106,11 +116,16 @@ function applyDelta(
 
 // Builds the filter options every `listExpenses` call site shares, from whatever search
 // text/category filter is currently committed in the store.
-function currentFilterOptions(state: Pick<ExpenseState, 'searchQuery' | 'categoryFilterId'>) {
+function currentFilterOptions(
+  state: Pick<ExpenseState, 'searchQuery' | 'categoryFilterId' | 'monthFilterKey'>,
+) {
   const noteSearch = state.searchQuery.trim();
+  const monthRange = state.monthFilterKey ? monthRangeFromKey(state.monthFilterKey) : null;
   return {
     noteSearch: noteSearch === '' ? undefined : noteSearch,
     categoryId: state.categoryFilterId ?? undefined,
+    dateFrom: monthRange ? new Date(monthRange.start).toISOString() : undefined,
+    dateTo: monthRange ? new Date(monthRange.end).toISOString() : undefined,
   };
 }
 
@@ -131,6 +146,7 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
   loadingMoreExpenses: false,
   searchQuery: '',
   categoryFilterId: null,
+  monthFilterKey: null,
   filtering: false,
   balance: 0,
   monthIncome: 0,
@@ -253,6 +269,11 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     await get().applyFilters();
   },
 
+  setFilterParams: async ({ categoryId, monthKey }) => {
+    set({ categoryFilterId: categoryId, monthFilterKey: monthKey });
+    await get().applyFilters();
+  },
+
   addExpenseOptimistic: expense =>
     set(state => ({ expenses: [expense, ...state.expenses], ...applyDelta(state, undefined, expense) })),
 
@@ -337,6 +358,12 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     set(state => ({ accounts: state.accounts.filter(a => a.id !== id) }));
   },
 
+  postDueRecurring: async () => {
+    const postedCount = await postDueRecurringTransactions();
+    if (postedCount > 0) await get().refresh();
+    return postedCount;
+  },
+
   reset: () => {
     if (undoTimer) clearTimeout(undoTimer);
     set({
@@ -345,6 +372,7 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       loadingMoreExpenses: false,
       searchQuery: '',
       categoryFilterId: null,
+      monthFilterKey: null,
       filtering: false,
       balance: 0,
       monthIncome: 0,

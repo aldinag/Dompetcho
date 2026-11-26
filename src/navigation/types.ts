@@ -30,7 +30,14 @@ export type RootStackParamList = {
 };
 
 export type TabParamList = {
-  Home: undefined;
+  Home:
+    | {
+        /** Seeds Home's category + month filter — see ROADMAP's "Summary: tap a category
+         *  to see its transactions". Cleared from the route params once applied. */
+        filterCategoryId?: string;
+        filterMonthKey?: string;
+      }
+    | undefined;
   Add: undefined;
   Summary: undefined;
 };

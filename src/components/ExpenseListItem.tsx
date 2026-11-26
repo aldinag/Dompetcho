@@ -19,6 +19,7 @@ export function ExpenseListItem({ expense }: { expense: Expense }) {
   const theme = useTheme();
   const navigation = useNavigation<Nav>();
   const isReceipt = expense.source === 'receipt_ocr';
+  const isRecurring = expense.source === 'recurring';
   const isIncome = expense.type === 'income';
   const categoryName = expense.category?.name;
   // Green for money in; spending stays the neutral text color (its '-' sign already says what
@@ -50,8 +51,15 @@ export function ExpenseListItem({ expense }: { expense: Expense }) {
           {isIncome ? '+' : '-'} {formatRupiah(expense.amount)}
         </Text>
         <View style={styles.badge}>
-          <Icon name={isReceipt ? 'camera' : 'pencil'} size={12} color={theme.textMuted} strokeWidth={2.2} />
-          <Text style={[styles.badgeText, { color: theme.textMuted }]}>{isReceipt ? 'Struk' : 'Manual'}</Text>
+          <Icon
+            name={isRecurring ? 'repeat' : isReceipt ? 'camera' : 'pencil'}
+            size={12}
+            color={theme.textMuted}
+            strokeWidth={2.2}
+          />
+          <Text style={[styles.badgeText, { color: theme.textMuted }]}>
+            {isRecurring ? 'Berulang' : isReceipt ? 'Struk' : 'Manual'}
+          </Text>
         </View>
       </View>
     </TouchableOpacity>

@@ -20,6 +20,18 @@ export function monthRangeOffset(monthsBack: number): MonthRange {
   };
 }
 
+/** The calendar month named by a "YYYY-MM" key (as used by Summary's month sections). */
+export function monthRangeFromKey(monthKey: string): MonthRange {
+  const [year, month] = monthKey.split('-').map(Number);
+  const start = new Date(year, month - 1, 1);
+  const end = new Date(year, month, 1);
+  return {
+    start: start.getTime(),
+    end: end.getTime(),
+    label: start.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+  };
+}
+
 export function greeting(): string {
   const hour = new Date().getHours();
   if (hour < 10) return 'Selamat pagi';

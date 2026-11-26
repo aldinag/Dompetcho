@@ -2,6 +2,7 @@ import { useExpenseStore, EXPENSES_PAGE_SIZE } from '../useExpenseStore';
 import { listAccounts } from '../../services/accountService';
 import { listCategories } from '../../services/categoryService';
 import { createExpense, deleteExpense, getExpenseTotals, listExpenses } from '../../services/expenseService';
+import { postDueRecurringTransactions } from '../../services/recurringPostingService';
 import { Category, Expense } from '../../types';
 
 // Explicit factories (not bare `jest.mock(path)`) so the real modules — which pull in
@@ -20,6 +21,7 @@ jest.mock('../../services/expenseService', () => ({
   createExpense: jest.fn(),
   deleteExpense: jest.fn(),
 }));
+jest.mock('../../services/recurringPostingService', () => ({ postDueRecurringTransactions: jest.fn() }));
 
 const mockListExpenses = listExpenses as jest.MockedFunction<typeof listExpenses>;
 const mockListCategories = listCategories as jest.MockedFunction<typeof listCategories>;
@@ -27,6 +29,9 @@ const mockListAccounts = listAccounts as jest.MockedFunction<typeof listAccounts
 const mockGetExpenseTotals = getExpenseTotals as jest.MockedFunction<typeof getExpenseTotals>;
 const mockCreateExpense = createExpense as jest.MockedFunction<typeof createExpense>;
 const mockDeleteExpense = deleteExpense as jest.MockedFunction<typeof deleteExpense>;
+const mockPostDueRecurringTransactions = postDueRecurringTransactions as jest.MockedFunction<
+  typeof postDueRecurringTransactions
+>;
 
 function expense(overrides: Partial<Expense> = {}): Expense {
   return {
@@ -60,6 +65,7 @@ beforeEach(() => {
     loadingMoreExpenses: false,
     searchQuery: '',
     categoryFilterId: null,
+    monthFilterKey: null,
     filtering: false,
     balance: 0,
     monthIncome: 0,
@@ -277,6 +283,35 @@ describe('useExpenseStore search/category filtering', () => {
     });
   });
 
+  it('sets the category and month filter together in a single fetch', async () => {
+    mockListExpenses.mockResolvedValue([FAKE_EXPENSE]);
+
+    await useExpenseStore.getState().setFilterParams({ categoryId: 'c1', monthKey: '2026-09' });
+
+    expect(mockListExpenses).toHaveBeenCalledTimes(1);
+    expect(mockListExpenses).toHaveBeenCalledWith({
+      limit: EXPENSES_PAGE_SIZE,
+      categoryId: 'c1',
+      dateFrom: new Date(2026, 8, 1).toISOString(),
+      dateTo: new Date(2026, 9, 1).toISOString(),
+    });
+    const state = useExpenseStore.getState();
+    expect(state.categoryFilterId).toBe('c1');
+    expect(state.monthFilterKey).toBe('2026-09');
+  });
+
+  it('clearing the combined filter goes back to an unfiltered fetch', async () => {
+    useExpenseStore.setState({ categoryFilterId: 'c1', monthFilterKey: '2026-09' });
+    mockListExpenses.mockResolvedValue([]);
+
+    await useExpenseStore.getState().setFilterParams({ categoryId: null, monthKey: null });
+
+    expect(mockListExpenses).toHaveBeenCalledWith({ limit: EXPENSES_PAGE_SIZE });
+    const state = useExpenseStore.getState();
+    expect(state.categoryFilterId).toBeNull();
+    expect(state.monthFilterKey).toBeNull();
+  });
+
   it('discards a stale filter response that resolves after a newer filter change', async () => {
     let resolveFirst: (value: Expense[]) => void;
     mockListExpenses.mockImplementationOnce(
@@ -462,5 +497,28 @@ describe('useExpenseStore.deleteExpenseWithUndo / undoPendingDelete', () => {
     await useExpenseStore.getState().deleteExpenseWithUndo(second);
 
     expect(useExpenseStore.getState().pendingUndo).toEqual(second);
+  });
+});
+
+describe('useExpenseStore.postDueRecurring', () => {
+  it('refreshes the list/totals when something was posted', async () => {
+    mockPostDueRecurringTransactions.mockResolvedValue(2);
+    mockListExpenses.mockResolvedValue([FAKE_EXPENSE]);
+    mockGetExpenseTotals.mockResolvedValue({ balance: 10, monthIncome: 0, monthExpense: 0 });
+
+    const postedCount = await useExpenseStore.getState().postDueRecurring();
+
+    expect(postedCount).toBe(2);
+    expect(mockListExpenses).toHaveBeenCalled(); // from the follow-up refresh()
+    expect(useExpenseStore.getState().balance).toBe(10);
+  });
+
+  it('does not refresh when nothing was posted', async () => {
+    mockPostDueRecurringTransactions.mockResolvedValue(0);
+
+    const postedCount = await useExpenseStore.getState().postDueRecurring();
+
+    expect(postedCount).toBe(0);
+    expect(mockListExpenses).not.toHaveBeenCalled();
   });
 });
