@@ -310,7 +310,7 @@ touch" above.
       `src/utils/` with tests (no previous month, zero previous, category missing last month,
       income excluded).
 
-- [ ] **Consistent error handling on Summary and Kelola Akun.** Home got an inline "Coba
+- [x] **Consistent error handling on Summary and Kelola Akun.** Home got an inline "Coba
       Lagi" error state; Summary and `ManageAccountsScreen` still only throw an `Alert` on a
       failed load and then sit blank. Give both the same inline error state (reuse the
       pattern/component from Home rather than copying it — extract a small shared component

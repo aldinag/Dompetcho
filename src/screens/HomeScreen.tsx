@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CategoryFilterBar } from '../components/CategoryFilterBar';
 import { EmptyState } from '../components/EmptyState';
+import { ErrorState } from '../components/ErrorState';
 import { ExpenseListItem } from '../components/ExpenseListItem';
 import { Icon } from '../components/Icon';
 import { SwipeableRow } from '../components/SwipeableRow';
@@ -334,19 +335,11 @@ export function HomeScreen() {
               body="Coba kata kunci atau kategori lain."
             />
           ) : error ? (
-            <View style={styles.errorState}>
-              <Icon name="warning" size={40} color={theme.danger} />
-              <Text style={[styles.errorTitle, { color: theme.text }]}>Gagal memuat data</Text>
-              <Text style={[styles.errorBody, { color: theme.textMuted }]}>{error}</Text>
-              <TouchableOpacity
-                style={[styles.outlineButton, { borderColor: theme.border }]}
-                onPress={handleRetryInitial}
-                accessibilityRole="button"
-                accessibilityLabel="Coba lagi memuat data"
-              >
-                <Text style={[styles.outlineButtonText, { color: theme.primary }]}>Coba Lagi</Text>
-              </TouchableOpacity>
-            </View>
+            <ErrorState
+              message={error}
+              onRetry={handleRetryInitial}
+              retryAccessibilityLabel="Coba lagi memuat data"
+            />
           ) : (
             <EmptyState />
           )
@@ -564,21 +557,6 @@ const styles = StyleSheet.create({
   offlineBannerText: {
     ...typography.caption,
     fontWeight: '600',
-  },
-  errorState: {
-    alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingTop: 80,
-  },
-  errorTitle: {
-    ...typography.h1,
-    marginTop: spacing.sm,
-    marginBottom: spacing['2xs'],
-  },
-  errorBody: {
-    ...typography.body,
-    textAlign: 'center',
-    marginBottom: spacing.md,
   },
   footerErrorText: {
     ...typography.caption,
